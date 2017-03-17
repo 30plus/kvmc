@@ -1,13 +1,13 @@
-include config/utilities.mak
-include config/feature-tests.mak
+include util/utilities.mak
+include util/feature-tests.mak
 
 # ARCH = x86_64, powerpc, arm64, mips
 ARCH	?= $(shell uname -m | sed -e s/ppc.*/powerpc/ -e s/aarch64.*/arm64/ -e s/mips64/mips/)
 CFLAGS	:= -fPIC
 LDFLAGS	:=
 
-KVMM_SRC = $(wildcard src/cmds/*.c) $(wildcard hw/virtio/*.c) $(wildcard net/uip/*.c) $(wildcard util/*.c) $(wildcard hw/*.c) $(wildcard hw/disk/*.c)
-OBJS	+= src/devices.o guest/compat.o src/irq.o src/kvm-cpu.o src/kvm.o src/term.o src/ioeventfd.o src/cmds.o src/kvm-ipc.o ${KVMM_SRC:.c=.o}
+KVMM_SRC = $(wildcard src/cmds/*.c) $(wildcard hw/virtio/*.c) $(wildcard src/net/*.c) $(wildcard util/*.c) $(wildcard hw/*.c) $(wildcard hw/disk/*.c)
+OBJS	+= src/devices.o util/guest/compat.o src/irq.o src/kvm-cpu.o src/kvm.o src/term.o src/ioeventfd.o src/cmds.o src/kvm-ipc.o ${KVMM_SRC:.c=.o}
 
 ifeq ($(ARCH),x86_64)
 	DEFINES += -DCONFIG_X86_64 -DCONFIG_X86
@@ -59,7 +59,7 @@ ifeq (y,$(ARCH_HAS_FRAMEBUFFER))
 	CFLAGS_GTK3 := $(shell pkg-config --cflags gtk+-3.0 2>/dev/null)
 	LDFLAGS_GTK3 := $(shell pkg-config --libs gtk+-3.0 2>/dev/null)
 	ifeq ($(call try-build,$(SOURCE_GTK3),$(CFLAGS) $(CFLAGS_GTK3),$(LDFLAGS) $(LDFLAGS_GTK3)),y)
-		OBJS_DYNOPT	+= ui/gtk3.o
+		OBJS_DYNOPT	+= hw/ui/gtk3.o
 		CFLAGS_DYNOPT	+= -DCONFIG_HAS_GTK3 $(CFLAGS_GTK3)
 		LIBS_DYNOPT	+= $(LDFLAGS_GTK3)
 	else
@@ -67,7 +67,7 @@ ifeq (y,$(ARCH_HAS_FRAMEBUFFER))
 	endif
 
 	ifeq ($(call try-build,$(SOURCE_VNCSERVER),$(CFLAGS),$(LDFLAGS) -lvncserver),y)
-		OBJS_DYNOPT	+= ui/vnc.o
+		OBJS_DYNOPT	+= hw/ui/vnc.o
 		CFLAGS_DYNOPT	+= -DCONFIG_HAS_VNCSERVER
 		LIBS_DYNOPT	+= -lvncserver
 	else
@@ -75,7 +75,7 @@ ifeq (y,$(ARCH_HAS_FRAMEBUFFER))
 	endif
 
 	ifeq ($(call try-build,$(SOURCE_SDL),$(CFLAGS),$(LDFLAGS) -lSDL),y)
-		OBJS_DYNOPT	+= ui/sdl.o
+		OBJS_DYNOPT	+= hw/ui/sdl.o
 		CFLAGS_DYNOPT	+= -DCONFIG_HAS_SDL
 		LIBS_DYNOPT	+= -lSDL
 	else
@@ -106,13 +106,13 @@ endif
 
 ifeq ($(call try-build,$(SOURCE_STATIC),$(CFLAGS),$(LDFLAGS) -static),y)
 	CFLAGS		+= -DCONFIG_GUEST_INIT
-	GUEST_OBJS	= guest/guest_init.o
+	GUEST_OBJS	= util/guest/guest_init.o
 	ifeq ($(ARCH_PRE_INIT),)
 		GUEST_INIT_FLAGS	+= -static $(PIE_FLAGS)
 	else
 		CFLAGS			+= -DCONFIG_GUEST_PRE_INIT
 		GUEST_INIT_FLAGS	+= -DCONFIG_GUEST_PRE_INIT
-		GUEST_OBJS		+= guest/guest_pre_init.o
+		GUEST_OBJS		+= util/guest/guest_pre_init.o
 	endif
 else
 $(warning No static libc found. Skipping guest init)
@@ -142,23 +142,25 @@ CFLAGS	+= $(DEFINES) -Iinclude -I$(ARCH_INCLUDE) -fno-strict-aliasing -O2
 #CFLAGS	+= -Werror -Wall -Wformat=2 -Winit-self -Wmissing-declarations -Wmissing-prototypes -Wnested-externs -Wno-system-headers -Wundef \
 	-Wold-style-definition -Wredundant-decls -Wsign-compare -Wstrict-prototypes -Wvolatile-register-var -Wwrite-strings -Wno-format-nonliteral
 
-all: guest/init guest/pre_init libkvmm.so kvmm
+all: util/guest/init util/guest/pre_init libkvmm.so kvmm
 
 kvmm: binding/sh.o libkvmm.so
 	$(CC) -o $@ $< -L. -lkvmm -lreadline
 
-libkvmm.so: $(OBJS) $(OBJS_DYNOPT) $(OTHEROBJS) guest/init guest/pre_init
+libkvmm.so: $(OBJS) $(OBJS_DYNOPT) $(OTHEROBJS) util/guest/init util/guest/pre_init
 	$(CC) -shared $(CFLAGS) $(OBJS) $(OBJS_DYNOPT) $(OTHEROBJS) $(GUEST_OBJS) $(LDFLAGS) $(LIBS_DYNOPT) -o $@ -lrt -pthread -lutil
 
 ifneq ($(ARCH_PRE_INIT),)
-guest/pre_init: $(ARCH_PRE_INIT)
+util/guest/pre_init: $(ARCH_PRE_INIT)
 	$(CC) -s $(PIE_FLAGS) -nostdlib $(ARCH_PRE_INIT) -o $@
-	$(LD) -r -b binary -o guest/guest_pre_init.o $@
+	$(LD) -r -b binary -o util/guest/guest_pre_init.o $@
 endif
 
-guest/init: guest/init.c
-	$(CC) $(GUEST_INIT_FLAGS) guest/init.c -o $@
-	$(LD) -r -b binary -o guest/guest_init.o $@
+util/guest/init: util/guest/init.c
+	$(CC) $(GUEST_INIT_FLAGS) $^ -o $@
+
+util/guest/guest_init.o: util/guest/init
+	$(LD) -r -b binary -o $@ $^
 
 %.s: %.c
 	$(CC) -o $@ -S $(CFLAGS) -fverbose-asm $<
@@ -199,4 +201,4 @@ check: all
 
 clean:
 	rm -fr arch/x86/bios/*.bin arch/x86/bios/*.elf arch/x86/bios/*.o arch/x86/bios/bios-rom.h
-	rm -f $(OBJS) $(OTHEROBJS) $(OBJS_DYNOPT) binding/sh.o kvmm libkvmm.so guest/init guest/pre_init $(GUEST_OBJS)
+	rm -f $(OBJS) $(OTHEROBJS) $(OBJS_DYNOPT) binding/sh.o kvmm libkvmm.so util/guest/init util/guest/pre_init $(GUEST_OBJS)

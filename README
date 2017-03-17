@@ -4,6 +4,7 @@ QEMU-free KVM Monitor
 [https://cloudplatform.googleblog.com/2017/01/7-ways-we-harden-our-KVM-hypervisor-at-Google-Cloud-security-in-plaintext.html]
 [https://news.ycombinator.com/item?id=13484926]
 [https://systems.cs.columbia.edu/projects/kvm-arm/]
+[https://github.com/google/novm]
 
 Non-QEMU implementation: Google does not use QEMU, the user-space virtual machine monitor and hardware emulation.
 Instead, we wrote our own user-space virtual machine monitor that has the following security advantages over QEMU:

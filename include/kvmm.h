@@ -13,8 +13,8 @@
 #define KVM_DEBUG_CMD_TYPE_NMI  (1 << 1)
 #define KVM_DEBUG_CMD_TYPE_SYSRQ (1 << 2)
 
-#define KVMM_GUEST_PRE_INIT	"guest/pre_init"
-#define KVMM_GUEST_INIT		"guest/init"
+#define KVMM_GUEST_PRE_INIT	"util/guest/pre_init"
+#define KVMM_GUEST_INIT		"util/guest/init"
 
 struct debug_cmd_params {
 	u32 dbg_type;
