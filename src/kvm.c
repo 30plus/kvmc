@@ -1,3 +1,4 @@
+#include <kvmc.h>
 #include "kvm/kvm.h"
 #include "kvm/read-write.h"
 #include "kvm/util.h"
@@ -62,36 +63,9 @@ static int pause_event;
 static DEFINE_MUTEX(pause_lock);
 extern struct kvm_ext kvm_req_ext[];
 
-static char kvm_dir[PATH_MAX];
-
-static int set_dir(const char *fmt, va_list args)
-{
-	char tmp[PATH_MAX];
-
-	vsnprintf(tmp, sizeof(tmp), fmt, args);
-
-	mkdir(tmp, 0777);
-
-	if (!realpath(tmp, kvm_dir))
-		return -errno;
-
-	strcat(kvm_dir, "/");
-
-	return 0;
-}
-
-void kvm__set_dir(const char *fmt, ...)
-{
-	va_list args;
-
-	va_start(args, fmt);
-	set_dir(fmt, args);
-	va_end(args);
-}
-
 const char *kvm__get_dir(void)
 {
-	return kvm_dir;
+	return KVMC_ROOT;
 }
 
 bool kvm__supports_extension(struct kvm *kvm, unsigned int extension)
@@ -301,7 +275,6 @@ int kvm__init(struct kvm *kvm)
 		if (ret < 0)
 			die("kvm__arch_setup_firmware() failed with error %d\n", ret);
 	}
-
 	return 0;
 
 err_vm_fd:

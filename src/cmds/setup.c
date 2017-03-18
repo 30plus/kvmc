@@ -20,10 +20,9 @@ void kvmc_help_setup(void)
 
 static int copy_file(const char *from, const char *to)
 {
-	int in_fd, out_fd;
+	int in_fd, out_fd, err = -1;
 	void *src, *dst;
 	struct stat st;
-	int err = -1;
 
 	in_fd = open(from, O_RDONLY);
 	if (in_fd < 0)

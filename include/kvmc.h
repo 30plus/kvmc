@@ -1,6 +1,8 @@
 #include <linux/types.h>
 
 #define	KVMC_NAME		"kvmc"
+#define	KVMC_ROOT		"/tmp/.kvmc"
+#define KVM_PID_FILE_PATH	"/.kvmc/"
 
 /* Version: "v" + Major + Minor [+ <d(raft)|a(lpha)|b(eta)>] */
 #define KVMC_VERSION		"v0.1.d"
@@ -61,6 +63,8 @@ void kvmc_help_resume(void);
 void kvmc_help_balloon(void);
 
 int get_vmstate(int sock);
+int kvmc_get_by_name(const char *name);
+int kvmc_for_each(int (*callback)(const char *name, int fd));
 int kvm_setup_create_new(const char *guestfs_name);
 void kvm_setup_resolv(const char *guestfs_name);
 int kvm_setup_guest_init(const char *guestfs_name);

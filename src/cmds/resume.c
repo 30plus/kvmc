@@ -1,10 +1,6 @@
 #include <kvmc.h>
-#include <kvm/util.h>
-#include <kvm/kvm.h>
 #include <kvm/kvm-ipc.h>
 #include <stdio.h>
-#include <string.h>
-#include <signal.h>
 
 void kvmc_help_resume(void)
 {
@@ -35,19 +31,19 @@ static int do_resume(const char *name, int sock)
 
 int kvmc_cmd_resume(int argc, const char **argv)
 {
-	int instance, r = 0;
+	int vm, r = 0;
 
 	if (argc == 0)
-		return kvm__enumerate_instances(do_resume);
+		return kvmc_for_each(do_resume);
 
 	while (argc--) {
-		instance = kvm__get_sock_by_instance(argv[argc]);
-		if (instance <= 0) {
+		vm = kvmc_get_by_name(argv[argc]);
+		if (vm <= 0) {
 			printf("  \033[1;33m[WARN]\033[0m Paused instance '%s' not found.\n", argv[argc]);
 			continue;
 		}
-		r += do_resume(argv[argc], instance);
-		close(instance);
+		r += do_resume(argv[argc], vm);
+		close(vm);
 	}
 	return r;
 }

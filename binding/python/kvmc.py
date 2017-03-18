@@ -1,3 +1,4 @@
+import os
 from cffi import FFI
 ffi = FFI()
 
@@ -14,6 +15,8 @@ ffi.cdef('int kvmc_cmd_start(int argc, const char **argv);')
 ffi.cdef('int kvmc_cmd_setup(int argc, const char **argv);')
 
 libkvmc = ffi.verify("#include <kvmc.h>", include_dirs=['.'], library_dirs=['.'], libraries=['kvmc'])
+if not os.path.isdir('/tmp/.kvmc'):
+	os.mkdir('/tmp/.kvmc')
 
 def gen_args(*args):
 	argc = 0

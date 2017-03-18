@@ -1,3 +1,4 @@
+#include <kvmc.h>
 #include <kvm/kvm.h>
 #include <kvm/kvm-ipc.h>
 #include <dirent.h>
@@ -10,22 +11,6 @@ void kvmc_help_ls(void)
 {
 	puts(" Usage:   KVMC ls [-r] [-f]\n\n"
 		"\t'-r' for guest and '-f' for rootfs, default action is to list both.\n");
-}
-
-static pid_t get_pid(int sock)
-{
-	pid_t pid;
-	int r;
-
-	r = kvm_ipc__send(sock, KVM_IPC_PID);
-	if (r < 0)
-		return r;
-
-	r = read(sock, &pid, sizeof(pid));
-	if (r < 0)
-		return r;
-
-	return pid;
 }
 
 int get_vmstate(int sock)
@@ -46,7 +31,16 @@ int get_vmstate(int sock)
 
 static int print_guest(const char *name, int sock)
 {
-	pid_t pid = get_pid(sock);
+	int r = 0;
+	pid_t pid = 0;
+
+	r = kvm_ipc__send(sock, KVM_IPC_PID);
+	if (r < 0)
+		return r;
+	r = read(sock, &pid, sizeof(pid));
+	if (r < 0)
+		return r;
+
 	int vmstate = get_vmstate(sock);
 
 	if ((int)pid < 0 || vmstate < 0) {
@@ -89,7 +83,7 @@ int kvmc_cmd_ls(int argc, const char **argv)
 	printf("%6s %-20s %s\n", "PID", "NAME", "STATE");
 	if (guest) {
 		puts("------------ Guests ----------------");
-		kvm__enumerate_instances(print_guest);
+		kvmc_for_each(print_guest);
 	}
 	if (rootfs) {
 		puts("------------ rootfs ----------------");

@@ -1,8 +1,5 @@
+#include <kvmc.h>
 #include <stdio.h>
-#include <string.h>
-#include <signal.h>
-#include <kvm/util.h>
-#include <kvm/kvm.h>
 #include <kvm/kvm-ipc.h>
 
 void kvmc_help_balloon(void)
@@ -13,7 +10,7 @@ void kvmc_help_balloon(void)
 
 int kvmc_cmd_balloon(int argc, const char **argv)
 {
-	int instance, r, amount;
+	int vm, r, amount;
 	u8 amount_abs = 0;
 
 	if (argc != 3) {
@@ -22,8 +19,8 @@ int kvmc_cmd_balloon(int argc, const char **argv)
 		return -1;
 	}
 
-	instance = kvm__get_sock_by_instance(argv[0]);
-	if (instance <= 0) {
+	vm = kvmc_get_by_name(argv[0]);
+	if (vm <= 0) {
 		printf("  \033[1;33m[WARN]\033[0m Guest instance '%s' not found.\n", argv[0]);
 		return -1;
 	}
@@ -43,8 +40,8 @@ int kvmc_cmd_balloon(int argc, const char **argv)
 		return -1;
 	}
 
-	r = kvm_ipc__send_msg(instance, KVM_IPC_BALLOON, sizeof(amount_abs), (u8 *)&amount_abs);
-	close(instance);
+	r = kvm_ipc__send_msg(vm, KVM_IPC_BALLOON, sizeof(amount_abs), (u8 *)&amount_abs);
+	close(vm);
 
 	if (r < 0)
 		return -1;

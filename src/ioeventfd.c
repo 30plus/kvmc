@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <signal.h>
-
 #include <linux/kernel.h>
 #include <linux/kvm.h>
 #include <linux/types.h>
@@ -23,14 +22,11 @@ static bool	ioeventfd_avail;
 static void *ioeventfd__thread(void *param)
 {
 	u64 tmp = 1;
-
 	kvm__set_thread_name("ioeventfd-worker");
 
 	for (;;) {
-		int nfds, i;
-
-		nfds = epoll_wait(epoll_fd, events, IOEVENTFD_MAX_EVENTS, -1);
-		for (i = 0; i < nfds; i++) {
+		int nfds = epoll_wait(epoll_fd, events, IOEVENTFD_MAX_EVENTS, -1);
+		for (int i = 0; i < nfds; i++) {
 			struct ioevent *ioevent;
 
 			if (events[i].data.fd == epoll_stop_fd)
@@ -44,10 +40,8 @@ static void *ioeventfd__thread(void *param)
 			ioevent->fn(ioevent->fn_kvm, ioevent->fn_ptr);
 		}
 	}
-
 done:
 	tmp = write(epoll_stop_fd, &tmp, sizeof(tmp));
-
 	return NULL;
 }
 
@@ -197,22 +191,16 @@ int ioeventfd__del_event(u64 addr, u64 datamatch)
 		return -ENOENT;
 
 	kvm_ioevent = (struct kvm_ioeventfd) {
-		.addr			= ioevent->io_addr,
-		.len			= ioevent->io_len,
-		.datamatch		= ioevent->datamatch,
-		.flags			= KVM_IOEVENTFD_FLAG_PIO
-					| KVM_IOEVENTFD_FLAG_DEASSIGN
-					| KVM_IOEVENTFD_FLAG_DATAMATCH,
+		.addr		= ioevent->io_addr,
+		.len		= ioevent->io_len,
+		.datamatch	= ioevent->datamatch,
+		.flags		= KVM_IOEVENTFD_FLAG_PIO | KVM_IOEVENTFD_FLAG_DEASSIGN | KVM_IOEVENTFD_FLAG_DATAMATCH,
 	};
 
 	ioctl(ioevent->fn_kvm->vm_fd, KVM_IOEVENTFD, &kvm_ioevent);
-
 	epoll_ctl(epoll_fd, EPOLL_CTL_DEL, ioevent->fd, NULL);
-
 	list_del(&ioevent->list);
-
 	close(ioevent->fd);
 	free(ioevent);
-
 	return 0;
 }

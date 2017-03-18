@@ -286,7 +286,7 @@ int virtio_mmio_init(struct kvm *kvm, void *dev, struct virtio_device *vdev,
 		.magic		= {'v', 'i', 'r', 't'},
 		.version	= 1,
 		.device_id	= subsys_id,
-		.vendor_id	= 0x434d564b , /* 'LKVM' */
+		.vendor_id	= 0x434d564b , /* 'KVMC' */
 		.queue_num_max	= 256,
 	};
 

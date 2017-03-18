@@ -1,12 +1,7 @@
+#include <stdio.h>
 #include <kvmc.h>
-#include <kvm/util.h>
-#include <kvm/kvm.h>
 #include <kvm/kvm-ipc.h>
 #include <kvm/read-write.h>
-#include <stdio.h>
-#include <string.h>
-#include <signal.h>
-#include <unistd.h>
 
 #define BUFFER_SIZE 100
 
@@ -20,7 +15,7 @@ void kvmc_help_debug(void)
 
 int kvmc_cmd_debug(int argc, const char **argv)
 {
-	int instance, r, opt;
+	int vm, r, opt;
 	char buff[BUFFER_SIZE];
 	struct debug_cmd_params cmd = {.dbg_type = 0};
 
@@ -29,8 +24,8 @@ int kvmc_cmd_debug(int argc, const char **argv)
 		return -1;
 	}
 
-	instance = kvm__get_sock_by_instance(argv[0]);
-	if (instance <= 0) {
+	vm = kvmc_get_by_name(argv[0]);
+	if (vm <= 0) {
 		printf("  \033[1;33m[WARN]\033[0m Running instance '%s' not found.\n", argv[0]);
 		return -1;
 	}
@@ -53,18 +48,18 @@ int kvmc_cmd_debug(int argc, const char **argv)
 		}
 	}
 
-	r = kvm_ipc__send_msg(instance, KVM_IPC_DEBUG, sizeof(cmd), (u8 *)&cmd);
+	r = kvm_ipc__send_msg(vm, KVM_IPC_DEBUG, sizeof(cmd), (u8 *)&cmd);
 	if (r < 0)
 		return r;
 	if (!(cmd.dbg_type & KVM_DEBUG_CMD_TYPE_DUMP))	/* Don't dump */
 		return 0;
 
 	do {
-		r = xread(instance, buff, BUFFER_SIZE);
+		r = xread(vm, buff, BUFFER_SIZE);
 		if (r < 0)
 			return 0;
 		printf("%.*s", r, buff);
 	} while (r > 0);
-	close(instance);
+	close(vm);
 	return r;
 }

@@ -1,12 +1,15 @@
 #include <stdlib.h>
+#include <stdbool.h>
 #include <stdio.h>
+#include <errno.h>
 #include <string.h>
-#include "kvm/kvm.h"
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <kvmc.h>
 
-int kvmc_exec(const char *cmd, int argc, const char **argv)
+static int kvmc_exec(const char *cmd, int argc, const char **argv)
 {
 	int ret = 0;
 	struct kvmc_cmd_s *p = kvmc_get_cmd(cmd);
@@ -15,7 +18,7 @@ int kvmc_exec(const char *cmd, int argc, const char **argv)
 
 	ret = p->exec(argc, argv);
 	if ((ret < 0) && (errno == EPERM))
-			die("Permission error - are you root?");
+		printf("  \033[1;33m[WARN]\033[0m Permission denied, maybe you're not root.\n");
 	return ret;
 }
 
@@ -24,7 +27,10 @@ int main(int argc, char *argv[])
 	int retval = EXIT_SUCCESS;
 	char *input, kvmc_prompt[KVMC_PROMPT_MAX_LEN];
 
-	kvm__set_dir("%s/%s", HOME_DIR, KVM_PID_FILE_PATH);
+	retval = mkdir(KVMC_ROOT, 0777);
+	if (retval && (errno != EEXIST)) {
+		printf("  \033[1;33m[WARN]\033[0m %s exists, but is not an accessible directory.\n", KVMC_ROOT);
+	}
 	if (argc > 1)
 		return kvmc_exec(argv[1], argc - 2, (const char **)&argv[2]);
 
@@ -32,7 +38,7 @@ int main(int argc, char *argv[])
 	// TODO: auto-complete on subcommands
 	rl_bind_key('\t', rl_complete);
 
-	for(;;) {
+	while(true) {
 		snprintf(kvmc_prompt, sizeof(kvmc_prompt), "[KVMC( %s )]>> ", getenv("USER"));
 		input = readline(kvmc_prompt);
 		if (strlen(input) == 0)
@@ -62,7 +68,7 @@ int main(int argc, char *argv[])
 		}
 		fake_v[fake_c] = 0;
 
-		kvmc_exec(input, fake_c, (const char **)fake_v);	// TODO: Parse input as (argc,argv)
+		kvmc_exec(input, fake_c, (const char **)fake_v);
 		free(input);
 	}
 	return retval;

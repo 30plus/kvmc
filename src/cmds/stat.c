@@ -66,18 +66,18 @@ static int do_memstat(const char *name, int sock)
 
 int kvmc_cmd_stat(int argc, const char **argv)
 {
-	int instance, r = 0;
+	int vm, r = 0;
 
 	if (argc == 0)
-		return kvm__enumerate_instances(do_memstat);
+		return kvmc_for_each(do_memstat);
 
-	instance = kvm__get_sock_by_instance(argv[0]);
-	if (instance <= 0) {
+	vm = kvmc_get_by_name(argv[0]);
+	if (vm <= 0) {
 		printf("  \033[1;33m[WARN]\033[0m Running instance '%s' not found.\n", argv[0]);
 		return -1;
 	}
 
-	r = do_memstat(argv[0], instance);
-	close(instance);
+	r = do_memstat(argv[0], vm);
+	close(vm);
 	return r;
 }

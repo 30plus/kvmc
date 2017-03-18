@@ -85,7 +85,7 @@ void kvm__remove_socket(const char *name)
 	unlink(full_name);
 }
 
-int kvm__get_sock_by_instance(const char *name)
+int kvmc_get_by_name(const char *name)
 {
 	int s, len, r;
 	char sock_file[PATH_MAX];
@@ -133,7 +133,7 @@ static bool is_socket(const char *base_path, const struct dirent *dent)
 	}
 }
 
-int kvm__enumerate_instances(int (*callback)(const char *name, int fd))
+int kvmc_for_each(int (*callback)(const char *name, int fd))
 {
 	int sock;
 	DIR *dir;
@@ -163,7 +163,7 @@ int kvm__enumerate_instances(int (*callback)(const char *name, int fd))
 				continue;
 
 			*p = 0;
-			sock = kvm__get_sock_by_instance(entry->d_name);
+			sock = kvmc_get_by_name(entry->d_name);
 			if (sock < 0)
 				continue;
 			ret = callback(entry->d_name, sock);
@@ -172,9 +172,7 @@ int kvm__enumerate_instances(int (*callback)(const char *name, int fd))
 				break;
 		}
 	}
-
 	closedir(dir);
-
 	return ret;
 }
 

@@ -1,5 +1,4 @@
 #include "kvm/vesa.h"
-
 #include "kvm/devices.h"
 #include "kvm/virtio-pci-dev.h"
 #include "kvm/framebuffer.h"

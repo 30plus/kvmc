@@ -1,7 +1,5 @@
 #include "kvm/symbol.h"
-
 #include "kvm/kvm.h"
-
 #include <linux/err.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,41 +33,31 @@ int symbol_init(struct kvm *kvm)
 			break;
 		}
 	}
-
 	return ret;
 }
 late_init(symbol_init);
 
 static asymbol *lookup(asymbol **symbols, int nr_symbols, const char *symbol_name)
 {
-	int i, ret;
+	int ret = -ENOENT;
 
-	ret = -ENOENT;
-
-	for (i = 0; i < nr_symbols; i++) {
+	for (int i = 0; i < nr_symbols; i++) {
 		asymbol *symbol = symbols[i];
-
 		if (!strcmp(bfd_asymbol_name(symbol), symbol_name))
 			return symbol;
 	}
-
 	return ERR_PTR(ret);
 }
 
 char *symbol_lookup(struct kvm *kvm, unsigned long addr, char *sym, size_t size)
 {
-	const char *filename;
-	bfd_vma sym_offset;
-	bfd_vma sym_start;
+	const char *filename, *func;
+	bfd_vma sym_offset, sym_start;
 	asection *section;
 	unsigned int line;
-	const char *func;
 	long symtab_size;
-	asymbol *symbol;
-	asymbol **syms;
-	int nr_syms, ret;
-
-	ret = -ENOENT;
+	asymbol *symbol, **syms;
+	int nr_syms, ret = -ENOENT;
 	if (!abfd)
 		goto not_found;
 
@@ -103,15 +91,11 @@ char *symbol_lookup(struct kvm *kvm, unsigned long addr, char *sym, size_t size)
 		goto not_found;
 
 	sym_start = bfd_asymbol_value(symbol);
-
 	sym_offset = addr - sym_start;
-
 	snprintf(sym, size, "%s+%llx (%s:%i)", func, (long long) sym_offset, filename, line);
-
 	sym[size - 1] = '\0';
 
 	free(syms);
-
 	return sym;
 
 not_found:
@@ -120,14 +104,9 @@ not_found:
 
 int symbol_exit(struct kvm *kvm)
 {
-	bfd_boolean ret = TRUE;
-
-	if (abfd)
-		ret = bfd_close(abfd);
-
-	if (ret == TRUE)
+	if (abfd && (bfd_close(abfd) != TRUE))
+		return -EFAULT;
+	else
 		return 0;
-
-	return -EFAULT;
 }
 late_exit(symbol_exit);

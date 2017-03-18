@@ -2,7 +2,6 @@
 #include "kvm/kvm.h"
 #include "kvm/pci.h"
 #include "kvm/virtio-mmio.h"
-
 #include <linux/err.h>
 #include <linux/rbtree.h>
 
@@ -11,9 +10,7 @@ struct device_bus {
 	int		dev_num;
 };
 
-static struct device_bus device_trees[DEVICE_BUS_MAX] = {
-	[0 ... (DEVICE_BUS_MAX - 1)] = { RB_ROOT, 0 },
-};
+static struct device_bus device_trees[DEVICE_BUS_MAX] = {[0 ... (DEVICE_BUS_MAX - 1)] = { RB_ROOT, 0 },};
 
 int device__register(struct device_header *dev)
 {
@@ -21,8 +18,7 @@ int device__register(struct device_header *dev)
 	struct rb_node **node, *parent = NULL;
 
 	if (dev->bus_type >= DEVICE_BUS_MAX) {
-		pr_warning("Ignoring device registration on unknown bus %d\n",
-			   dev->bus_type);
+		pr_warning("Ignoring device registration on unknown bus %d\n", dev->bus_type);
 		return -EINVAL;
 	}
 
@@ -74,17 +70,14 @@ struct device_header *device__find_dev(enum device_bus_type bus_type, u8 dev_num
 
 	node = device_trees[bus_type].root.rb_node;
 	while (node) {
-		struct device_header *dev = rb_entry(node, struct device_header,
-						     node);
-		if (dev_num < dev->dev_num) {
+		struct device_header *dev = rb_entry(node, struct device_header, node);
+		if (dev_num < dev->dev_num)
 			node = node->rb_left;
-		} else if (dev_num > dev->dev_num) {
+		else if (dev_num > dev->dev_num)
 			node = node->rb_right;
-		} else {
+		else
 			return dev;
-		}
 	}
-
 	return NULL;
 }
 

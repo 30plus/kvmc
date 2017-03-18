@@ -120,8 +120,7 @@ static void kernel_usage_with_options(void)
 		fprintf(stderr, "\t%s\n", kernel);
 		k++;
 	}
-	fprintf(stderr, "\nPlease see '%s run --help' for more options.\n\n",
-		KVM_BINARY_NAME);
+	fprintf(stderr, "\nPlease see '%s start --help' for more options.\n\n", KVMC_NAME);
 }
 
 static u64 host_ram_size(void)
@@ -445,7 +444,7 @@ static struct kvm *kvmc_start_init(int argc, char * const* argv)
 
 	kvm->cfg.real_cmdline = real_cmdline;
 
-	printf("  # %s start -k %s -m %Lu -c %d --name %s --disk %s\n", KVM_BINARY_NAME, kvm->cfg.kernel_filename,
+	printf("  # %s start -k %s -m %Lu -c %d --name %s --disk %s\n", KVMC_NAME, kvm->cfg.kernel_filename,
 		(unsigned long long)kvm->cfg.ram_size / 1024 / 1024, kvm->cfg.nrcpus, kvm->cfg.guest_name, kvm->cfg.disk_image[0].filename);
 
 	if (init_list__init(kvm) < 0)
