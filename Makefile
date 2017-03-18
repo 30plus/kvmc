@@ -6,8 +6,8 @@ ARCH	?= $(shell uname -m | sed -e s/ppc.*/powerpc/ -e s/aarch64.*/arm64/ -e s/mi
 CFLAGS	:= -fPIC
 LDFLAGS	:=
 
-KVMM_SRC = $(wildcard src/cmds/*.c) $(wildcard hw/virtio/*.c) $(wildcard src/net/*.c) $(wildcard util/*.c) $(wildcard hw/*.c) $(wildcard hw/disk/*.c)
-OBJS	+= src/devices.o util/guest/compat.o src/irq.o src/kvm-cpu.o src/kvm.o src/term.o src/ioeventfd.o src/cmds.o src/kvm-ipc.o ${KVMM_SRC:.c=.o}
+KVMC_SRC = $(wildcard src/cmds/*.c) $(wildcard hw/virtio/*.c) $(wildcard src/net/*.c) $(wildcard util/*.c) $(wildcard hw/*.c) $(wildcard hw/disk/*.c)
+OBJS	+= src/devices.o util/guest/compat.o src/irq.o src/kvm-cpu.o src/kvm.o src/term.o src/ioeventfd.o src/cmds.o src/kvm-ipc.o ${KVMC_SRC:.c=.o}
 
 ifeq ($(ARCH),x86_64)
 	DEFINES += -DCONFIG_X86_64 -DCONFIG_X86
@@ -42,7 +42,7 @@ ifeq ($(ARCH),mips)
 endif
 
 ifeq (,$(ARCH_INCLUDE))
-        $(error This architecture ($(ARCH)) is not supported in kvmm)
+        $(error This architecture ($(ARCH)) is not supported in kvmc)
 endif
 
 # Detect optional features.
@@ -139,15 +139,15 @@ endif
 DEFINES	+= -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DBUILD_ARCH='"$(ARCH)"'
 
 CFLAGS	+= $(DEFINES) -Iinclude -I$(ARCH_INCLUDE) -fno-strict-aliasing -O2
-#CFLAGS	+= -Werror -Wall -Wformat=2 -Winit-self -Wmissing-declarations -Wmissing-prototypes -Wnested-externs -Wno-system-headers -Wundef \
+CFLAGS	+= -Werror -Wall -Wformat=2 -Winit-self -Wnested-externs -Wno-system-headers -Wundef -Wunused \
 	-Wold-style-definition -Wredundant-decls -Wsign-compare -Wstrict-prototypes -Wvolatile-register-var -Wwrite-strings -Wno-format-nonliteral
 
-all: util/guest/init util/guest/pre_init libkvmm.so kvmm
+all: util/guest/init util/guest/pre_init libkvmc.so kvmc
 
-kvmm: binding/sh.o libkvmm.so
-	$(CC) -o $@ $< -L. -lkvmm -lreadline
+kvmc: binding/sh.o libkvmc.so
+	$(CC) -o $@ $< -L. -lkvmc -lreadline
 
-libkvmm.so: $(OBJS) $(OBJS_DYNOPT) $(OTHEROBJS) util/guest/init util/guest/pre_init
+libkvmc.so: $(OBJS) $(OBJS_DYNOPT) $(OTHEROBJS) ${GUEST_OBJS}
 	$(CC) -shared $(CFLAGS) $(OBJS) $(OBJS_DYNOPT) $(OTHEROBJS) $(GUEST_OBJS) $(LDFLAGS) $(LIBS_DYNOPT) -o $@ -lrt -pthread -lutil
 
 ifneq ($(ARCH_PRE_INIT),)
@@ -192,13 +192,13 @@ arch/x86/bios/bios-rom.h: arch/x86/bios/bios.bin.elf
 
 .PHONY: clean check strip
 strip: all
-	@strip kvmm libkvmm.so
+	@strip kvmc libkvmc.so
 
 check: all
 	#$(MAKE) -C tests
-	#./kvmm start tests/pit/tick.bin
-	./kvmm start --disk ../example/linux.img --kernel ../example/bzImage --network virtio --sdl
+	#./kvmc start tests/pit/tick.bin
+	./kvmc start --disk ../example/linux.img --kernel ../example/bzImage --network virtio --sdl
 
 clean:
 	rm -fr arch/x86/bios/*.bin arch/x86/bios/*.elf arch/x86/bios/*.o arch/x86/bios/bios-rom.h
-	rm -f $(OBJS) $(OTHEROBJS) $(OBJS_DYNOPT) binding/sh.o kvmm libkvmm.so util/guest/init util/guest/pre_init $(GUEST_OBJS)
+	rm -f $(OBJS) $(OTHEROBJS) $(OBJS_DYNOPT) binding/sh.o kvmc libkvmc.so util/guest/init util/guest/pre_init $(GUEST_OBJS)

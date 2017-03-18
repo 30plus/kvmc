@@ -1,4 +1,4 @@
-#include <kvmm.h>
+#include <kvmc.h>
 #include <kvm/util.h>
 #include <kvm/kvm.h>
 #include <kvm/kvm-ipc.h>
@@ -6,16 +6,16 @@
 #include <string.h>
 #include <signal.h>
 
-void kvmm_help_pause(void)
+void kvmc_help_pause(void)
 {
-	puts(" Usage:   KVMM pause [name ...]\n\n\tPauses all instances if name is not specified.\n");
+	puts(" Usage:   KVMC pause [name ...]\n\n\tPauses all instances if name is not specified.\n");
 }
 
 static int do_pause(const char *name, int sock)
 {
-	int r, vmstate;
+	int r = 0;
 
-	vmstate = get_vmstate(sock);
+	int vmstate = get_vmstate(sock);
 	if (vmstate < 0)
 		return vmstate;
 	if (vmstate == KVM_VMSTATE_PAUSED) {
@@ -31,9 +31,9 @@ static int do_pause(const char *name, int sock)
 	return 0;
 }
 
-int kvmm_cmd_pause(int argc, const char **argv)
+int kvmc_cmd_pause(int argc, const char **argv)
 {
-	int instance, r;
+	int instance = 0, r = 0;
 
 	if (argc == 0)
 		return kvm__enumerate_instances(do_pause);

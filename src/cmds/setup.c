@@ -1,4 +1,4 @@
-#include <kvmm.h>
+#include <kvmc.h>
 #include <kvm/util.h>
 #include <kvm/kvm.h>
 #include <kvm/read-write.h>
@@ -13,9 +13,9 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 
-void kvmm_help_setup(void)
+void kvmc_help_setup(void)
 {
-	printf(" Usage:   KVMM setup [name]\n\n\t\tCreates new rootfs under %s.\n\n", kvm__get_dir());
+	printf(" Usage:   KVMC setup [name]\n\n\t\tCreates new rootfs under %s.\n\n", kvm__get_dir());
 }
 
 static int copy_file(const char *from, const char *to)
@@ -78,12 +78,12 @@ int kvm_setup_guest_init(const char *guestfs_name)
 
 #ifdef CONFIG_GUEST_PRE_INIT
 	snprintf(path, PATH_MAX, "%s%s/%s", kvm__get_dir(), guestfs_name, "virt/pre_init");
-	err = copy_file(KVMM_GUEST_PRE_INIT, path);
+	err = copy_file(KVMC_GUEST_PRE_INIT, path);
 	if (err)
 		return err;
 #endif
 	snprintf(path, PATH_MAX, "%s%s/%s", kvm__get_dir(), guestfs_name, "virt/init");
-	err = copy_file(KVMM_GUEST_INIT, path);
+	err = copy_file(KVMC_GUEST_INIT, path);
 	return err;
 }
 #else
@@ -168,7 +168,7 @@ int kvm_setup_create_new(const char *guestfs_name)
 	return copy_passwd(guestfs_name);
 }
 
-int kvmm_cmd_setup(int argc, const char **argv)
+int kvmc_cmd_setup(int argc, const char **argv)
 {
 	const char *new_guest = "default";
 
@@ -185,6 +185,6 @@ int kvmm_cmd_setup(int argc, const char **argv)
 	else
 		printf("A new rootfs '%s' has been created in '%s%s'.\n\n"
 			"You can now start it by running the following command:\n\n  %s start -d %s\n",
-			new_guest, kvm__get_dir(), new_guest, KVMM_NAME, new_guest);
+			new_guest, kvm__get_dir(), new_guest, KVMC_NAME, new_guest);
 	return r;
 }

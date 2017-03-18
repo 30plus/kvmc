@@ -1,10 +1,26 @@
-QEMU-free KVM Monitor
+QEMU-free KVM Connector/Client/Controller
 
-##############################################################################
+===============================================================================
+[What am I]
+KVMC is ...	isolation & simplification
+
+[Why are we]
+1. Google Cloud Platform ...
+2. VFIO, VT-d, ...
+3. Qemu code base, ease of customization ...
+4. Existing implementation (novmm+ limits itself to GCP env, that is closed source,
+   and requires special hw commonly found at Google)
+
+[Where are we]
+...
+
+
+[Reference]
 [https://cloudplatform.googleblog.com/2017/01/7-ways-we-harden-our-KVM-hypervisor-at-Google-Cloud-security-in-plaintext.html]
 [https://news.ycombinator.com/item?id=13484926]
 [https://systems.cs.columbia.edu/projects/kvm-arm/]
 [https://github.com/google/novm]
+===============================================================================
 
 Non-QEMU implementation: Google does not use QEMU, the user-space virtual machine monitor and hardware emulation.
 Instead, we wrote our own user-space virtual machine monitor that has the following security advantages over QEMU:
@@ -49,7 +65,7 @@ The guest kernel has to be built with the following configuration:
  - For vesa device (--sdl or --vnc):	CONFIG_FB_VESA=y
 
 And finally, launch the hypervisor as root:
-  ./kvmm run --disk example/linux.img --kernel example/bzImage --network virtio -sdl
+  ./kvmc run --disk example/linux.img --kernel example/bzImage --network virtio -sdl
 
 See the following thread for original discussion for motivation of this project:
 http://thread.gmane.org/gmane.linux.kernel/962051/focus=962620

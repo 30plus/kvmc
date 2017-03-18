@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <getopt.h>
 
-#include <kvmm.h>
+#include <kvmc.h>
 #include "kvm/virtio-balloon.h"
 #include "kvm/virtio-console.h"
 #include "kvm/8250-serial.h"
@@ -50,9 +50,7 @@
 #define RAM_SIZE_RATIO		0.8
 
 __thread struct kvm_cpu *current_kvm_cpu;
-static int  kvm_run_wrapper;
 bool do_debug_print = false;
-static const char * const run_usage[] = {"KVMM start [<options>] [<kernel image>]", NULL};
 static char kernel[PATH_MAX];
 static const char *host_kernels[] = {"/boot/vmlinuz", "/vmlinuz", NULL};
 static const char *default_kernels[] = {"../example/bzImage", "../../arch/" BUILD_ARCH "/boot/bzImage", NULL};
@@ -210,9 +208,9 @@ static const char *find_vmlinux(void)
 	return NULL;
 }
 
-void kvmm_help_start(void)
+void kvmc_help_start(void)
 {
-	puts(" Usage:   KVMM start <option [...]>\n\n"
+	puts(" Usage:   KVMC start <option [...]>\n\n"
 "Basic options:\n"
 "   -N, --name	<guest name>	A name for the guest\n"
 "   -C, --cpus <n>		Number of CPUs\n"
@@ -249,25 +247,7 @@ void kvmm_help_start(void)
 //"       --vidmode <n>     	Video mode\n\n");
 }
 
-static void resolve_program(const char *src, char *dst, size_t len)
-{
-	struct stat st;
-	int err;
-
-	err = stat(src, &st);
-
-	if (!err && S_ISREG(st.st_mode)) {
-		char resolved_path[PATH_MAX];
-
-		if (!realpath(src, resolved_path))
-			die("Unable to resolve program %s: %s\n", src, strerror(errno));
-
-		snprintf(dst, len, "/host%s", resolved_path);
-	} else
-		strncpy(dst, src, len);
-}
-
-static struct kvm *kvmm_start_init(int argc, char * const* argv)
+static struct kvm *kvmc_start_init(int argc, char * const* argv)
 {
 	int opt_idx = 0, opt;
 	static char real_cmdline[2048], default_name[20];
@@ -471,10 +451,10 @@ static struct kvm *kvmm_start_init(int argc, char * const* argv)
 	return kvm;
 }
 
-int kvmm_cmd_start(int argc, const char ** argv)
+int kvmc_cmd_start(int argc, const char ** argv)
 {
 	int ret = -EFAULT;
-	struct kvm *kvm = kvmm_start_init(argc, (char * const*)argv);
+	struct kvm *kvm = kvmc_start_init(argc, (char * const*)argv);
 	if (IS_ERR(kvm))
 		return PTR_ERR(kvm);
 

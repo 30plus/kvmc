@@ -1,4 +1,4 @@
-#include <kvmm.h>
+#include <kvmc.h>
 #include <kvm/util.h>
 #include <kvm/kvm.h>
 #include <kvm/kvm-ipc.h>
@@ -10,15 +10,15 @@
 
 #define BUFFER_SIZE 100
 
-void kvmm_help_debug(void)
+void kvmc_help_debug(void)
 {
-	puts(" Usage:   KVMM debug <name> [-d] [-m] [-s]\n\n"
+	puts(" Usage:   KVMC debug <name> [-d] [-m] [-s]\n\n"
 		"\t'-d' generates a debug dump from guest\n"
 		"\t'-m' generates NMI on vCPU\n"
 		"\t'-s' injects a sysrq\n");
 }
 
-int kvmm_cmd_debug(int argc, const char **argv)
+int kvmc_cmd_debug(int argc, const char **argv)
 {
 	int instance, r, opt;
 	char buff[BUFFER_SIZE];

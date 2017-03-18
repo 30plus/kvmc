@@ -4,12 +4,12 @@
 #include "kvm/kvm.h"
 #include <readline/readline.h>
 #include <readline/history.h>
-#include <kvmm.h>
+#include <kvmc.h>
 
-int kvmm_exec(const char *cmd, int argc, const char **argv)
+int kvmc_exec(const char *cmd, int argc, const char **argv)
 {
 	int ret = 0;
-	struct kvmm_cmd_s *p = kvmm_get_cmd(cmd);
+	struct kvmc_cmd_s *p = kvmc_get_cmd(cmd);
 	if (p == NULL)
 		return EINVAL;
 
@@ -22,20 +22,19 @@ int kvmm_exec(const char *cmd, int argc, const char **argv)
 int main(int argc, char *argv[])
 {
 	int retval = EXIT_SUCCESS;
-	char *input, kvmm_prompt[KVMM_PROMPT_MAX_LEN];
-	int (*exec)(int argc, char **argv) = NULL;
+	char *input, kvmc_prompt[KVMC_PROMPT_MAX_LEN];
 
 	kvm__set_dir("%s/%s", HOME_DIR, KVM_PID_FILE_PATH);
 	if (argc > 1)
-		return kvmm_exec(argv[1], argc - 2, (const char **)&argv[2]);
+		return kvmc_exec(argv[1], argc - 2, (const char **)&argv[2]);
 
 	// Configure readline to auto-complete paths when the tab key is hit.
 	// TODO: auto-complete on subcommands
 	rl_bind_key('\t', rl_complete);
 
 	for(;;) {
-		snprintf(kvmm_prompt, sizeof(kvmm_prompt), "[KVMM( %s )]>> ", getenv("USER"));
-		input = readline(kvmm_prompt);
+		snprintf(kvmc_prompt, sizeof(kvmc_prompt), "[KVMC( %s )]>> ", getenv("USER"));
+		input = readline(kvmc_prompt);
 		if (strlen(input) == 0)
 			continue;
 		else if ((!strncmp(input, "exit", 5)) || (!strncmp(input, "quit", 5)))
@@ -43,10 +42,10 @@ int main(int argc, char *argv[])
 		add_history(input);
 
 		int fake_c = 0;
-		char *fake_v[KVMM_MAX_OPTS + 1] = {NULL};
+		char *fake_v[KVMC_MAX_OPTS + 1] = {NULL};
 		char *parse_loc = input;
 		char *parse_idx = NULL;
-		while (parse_loc && (fake_c < KVMM_MAX_OPTS)) {
+		while (parse_loc && (fake_c < KVMC_MAX_OPTS)) {
 			if (!(parse_idx = strchr(parse_loc, ' ')) && !(parse_idx = strchr(parse_loc, '\t')))
 				break;
 
@@ -63,7 +62,7 @@ int main(int argc, char *argv[])
 		}
 		fake_v[fake_c] = 0;
 
-		kvmm_exec(input, fake_c, (const char **)fake_v);	// TODO: Parse input as (argc,argv)
+		kvmc_exec(input, fake_c, (const char **)fake_v);	// TODO: Parse input as (argc,argv)
 		free(input);
 	}
 	return retval;

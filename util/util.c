@@ -99,7 +99,7 @@ void *mmap_hugetlbfs(struct kvm *kvm, const char *htlbfs_path, u64 size)
 
 	kvm->ram_pagesize = blk_size;
 
-	snprintf(mpath, PATH_MAX, "%s/kvmmXXXXXX", htlbfs_path);
+	snprintf(mpath, PATH_MAX, "%s/kvmcXXXXXX", htlbfs_path);
 	fd = mkstemp(mpath);
 	if (fd < 0)
 		die("Can't open %s for hugetlbfs map\n", mpath);

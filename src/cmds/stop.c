@@ -1,13 +1,13 @@
-#include <kvmm.h>
+#include <kvmc.h>
 #include <kvm/kvm.h>
 #include <kvm/kvm-ipc.h>
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
 
-void kvmm_help_stop(void)
+void kvmc_help_stop(void)
 {
-	puts(" Usage:	KVMM stop [name ...]\n\n\tStops all instances if name is not specified.\n");
+	puts(" Usage:	KVMC stop [name ...]\n\n\tStops all instances if name is not specified.\n");
 }
 
 static int do_stop(const char *name, int sock)
@@ -15,7 +15,7 @@ static int do_stop(const char *name, int sock)
 	return kvm_ipc__send(sock, KVM_IPC_STOP);
 }
 
-int kvmm_cmd_stop(int argc, const char **argv)
+int kvmc_cmd_stop(int argc, const char **argv)
 {
 	int instance, r = 0;
 

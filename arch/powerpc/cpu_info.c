@@ -200,7 +200,7 @@ struct cpu_info *find_cpu_info(struct kvm *kvm)
 
 	/* Didn't find anything? Rut-ro. */
 	if (!info) {
-		pr_warning("Host CPU unsupported by KVMM\n");
+		pr_warning("Host CPU unsupported by KVMC\n");
 		info = &cpu_dummy_info;
 	}
 

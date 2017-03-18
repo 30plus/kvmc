@@ -1,4 +1,4 @@
-#include <kvmm.h>
+#include <kvmc.h>
 #include <kvm/util.h>
 #include <kvm/kvm.h>
 #include <kvm/kvm-ipc.h>
@@ -8,9 +8,9 @@
 #include <signal.h>
 #include <linux/virtio_balloon.h>
 
-void kvmm_help_stat(void)
+void kvmc_help_stat(void)
 {
-	puts(" Usage:   KVMM stat [name]\n\n\tDisplays memory statistics, of all instances if name is not specified.\n");
+	puts(" Usage:   KVMC stat [name]\n\n\tDisplays memory statistics, of all instances if name is not specified.\n");
 }
 
 static int do_memstat(const char *name, int sock)
@@ -64,7 +64,7 @@ static int do_memstat(const char *name, int sock)
 	return 0;
 }
 
-int kvmm_cmd_stat(int argc, const char **argv)
+int kvmc_cmd_stat(int argc, const char **argv)
 {
 	int instance, r = 0;
 

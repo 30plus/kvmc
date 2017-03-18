@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <sys/eventfd.h>
 #include <dirent.h>
-#include <kvmm.h>
+#include <kvmc.h>
 
 #include "kvm/kvm-ipc.h"
 #include "kvm/rwsem.h"

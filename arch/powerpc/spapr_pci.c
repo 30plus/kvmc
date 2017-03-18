@@ -188,7 +188,7 @@ void spapr_create_phb(struct kvm *kvm, const char *busname, uint64_t buid,
 		uint64_t mem_win_addr, uint64_t mem_win_size, uint64_t io_win_addr, uint64_t io_win_size)
 {
 	/*
-	 * Since KVMM doesn't really have any concept of buses etc.,
+	 * Since KVMC doesn't really have any concept of buses etc.,
 	 * there's nothing to register here.  Just register RTAS.
 	 */
 	spapr_rtas_register("read-pci-config", rtas_read_pci_config);
@@ -295,7 +295,7 @@ int spapr_populate_pci_devices(struct kvm *kvm,
 			continue;
 
 		devid = dev_hdr->dev_num;
-		fn = 0; /* KVMM doesn't yet do multifunction devices */
+		fn = 0; /* KVMC doesn't yet do multifunction devices */
 
 		sprintf(nodename, "pci@%u,%u", devid, fn);
 

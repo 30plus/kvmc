@@ -5,20 +5,20 @@
 #include <kvm/kvm.h>
 #include <kvm/kvm-ipc.h>
 
-void kvmm_help_balloon(void)
+void kvmc_help_balloon(void)
 {
-	puts(" Usage:   KVMM balloon <name> <-i|-d> <amount>\n\n"
+	puts(" Usage:   KVMC balloon <name> <-i|-d> <amount>\n\n"
 		"\t'-i' to inflate, '-d' to deflate, and 'amount' should be in size of MB.\n");
 }
 
-int kvmm_cmd_balloon(int argc, const char **argv)
+int kvmc_cmd_balloon(int argc, const char **argv)
 {
 	int instance, r, amount;
 	u8 amount_abs = 0;
 
 	if (argc != 3) {
 		printf("  \033[1;33m[WARN]\033[0m Exactly THREE arguments required.\n\n");
-		kvmm_help_balloon();
+		kvmc_help_balloon();
 		return -1;
 	}
 

@@ -17,9 +17,9 @@
 #define SIGKVMPAUSE		(SIGRTMIN + 1)
 #define SIGKVMTASK		(SIGRTMIN + 2)
 
-#define KVM_PID_FILE_PATH	"/.kvmm/"
+#define KVM_PID_FILE_PATH	"/.kvmc/"
 #define HOME_DIR		getenv("HOME")
-#define KVM_BINARY_NAME		"KVMM"
+#define KVM_BINARY_NAME		"KVMC"
 
 #ifndef PAGE_SIZE
 #define PAGE_SIZE (sysconf(_SC_PAGE_SIZE))

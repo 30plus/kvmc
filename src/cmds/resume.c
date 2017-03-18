@@ -1,4 +1,4 @@
-#include <kvmm.h>
+#include <kvmc.h>
 #include <kvm/util.h>
 #include <kvm/kvm.h>
 #include <kvm/kvm-ipc.h>
@@ -6,9 +6,9 @@
 #include <string.h>
 #include <signal.h>
 
-void kvmm_help_resume(void)
+void kvmc_help_resume(void)
 {
-	puts(" Usage:	KVMM resume [name ...]\n\n\tResumes all instances if name is not specified.\n");
+	puts(" Usage:	KVMC resume [name ...]\n\n\tResumes all instances if name is not specified.\n");
 }
 
 static int do_resume(const char *name, int sock)
@@ -33,7 +33,7 @@ static int do_resume(const char *name, int sock)
 	return 0;
 }
 
-int kvmm_cmd_resume(int argc, const char **argv)
+int kvmc_cmd_resume(int argc, const char **argv)
 {
 	int instance, r = 0;
 

@@ -6,9 +6,9 @@
 #include <signal.h>
 #include <fcntl.h>
 
-void kvmm_help_ls(void)
+void kvmc_help_ls(void)
 {
-	puts(" Usage:   KVMM ls [-r] [-f]\n\n"
+	puts(" Usage:   KVMC ls [-r] [-f]\n\n"
 		"\t'-r' for guest and '-f' for rootfs, default action is to list both.\n");
 }
 
@@ -54,8 +54,7 @@ static int print_guest(const char *name, int sock)
 		return -1;
 	}
 
-	char *vmstat_disp = (vmstate == KVM_VMSTATE_PAUSED) ? "paused" : "running";
-	printf("%5d %-20s %s\n", pid, name, vmstat_disp);
+	printf("%5d %-20s %s\n", pid, name, ((vmstate == KVM_VMSTATE_PAUSED) ? "paused" : "running"));
 	return 0;
 }
 
@@ -74,7 +73,7 @@ static void kvm_ls_rootfs(void)
 	}
 }
 
-int kvmm_cmd_ls(int argc, const char **argv)
+int kvmc_cmd_ls(int argc, const char **argv)
 {
 	bool guest = false, rootfs = false;
 
