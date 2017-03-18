@@ -197,7 +197,7 @@ strip: all
 check: all
 	#$(MAKE) -C tests
 	#./kvmc start tests/pit/tick.bin
-	./kvmc start --disk ../example/linux.img --kernel ../example/bzImage --network virtio --sdl
+	./kvmc start --disk ../linux.img --kernel ../bzImage --network virtio --sdl
 
 clean:
 	rm -fr arch/x86/bios/*.bin arch/x86/bios/*.elf arch/x86/bios/*.o arch/x86/bios/bios-rom.h

@@ -250,6 +250,7 @@ void kvmc_help_start(void)
 static struct kvm *kvmc_start_init(int argc, char * const* argv)
 {
 	int opt_idx = 0, opt;
+	const char * ext_argv[argc + 1];
 	static char real_cmdline[2048], default_name[20];
 	unsigned int nr_online_cpus;
 	const struct option start_options[] = {
@@ -294,9 +295,13 @@ static struct kvm *kvmc_start_init(int argc, char * const* argv)
 	nr_online_cpus = sysconf(_SC_NPROCESSORS_ONLN);
 	kvm->cfg.custom_rootfs_name = "default";
 
-	optind = -1;	// TODO: getopt_long swallows the 1st argument
+	// TODO: getopt_long skips the 1st argument, so we rebuild (argc,argv) pair
+	ext_argv[0] = "start";
+	for (int i = 0; i < argc; i++)
+		ext_argv[i+1] = argv[i];
+
 	while (1) {
-		opt = getopt_long(argc, argv, start_opts, start_options, &opt_idx);
+		opt = getopt_long(argc + 1, (char * const *)ext_argv, start_opts, start_options, &opt_idx);
 		if (opt == -1)
 			break;
 		switch (opt) {
@@ -329,8 +334,8 @@ static struct kvm *kvmc_start_init(int argc, char * const* argv)
 		default:	break;
 		}
 	}
-//	if ((optind < argc) && !(kvm->cfg.kernel_filename))
-//		kvm->cfg.kernel_filename = argv[optind];
+	if ((optind < argc) && !(kvm->cfg.kernel_filename))
+		kvm->cfg.kernel_filename = argv[optind];
 
 	kvm->nr_disks = kvm->cfg.image_count;
 
@@ -440,10 +445,8 @@ static struct kvm *kvmc_start_init(int argc, char * const* argv)
 
 	kvm->cfg.real_cmdline = real_cmdline;
 
-	printf("  # %s start -k %s -m %Lu -c %d --name %s\n", KVM_BINARY_NAME,
-		kvm->cfg.kernel_filename,
-		(unsigned long long)kvm->cfg.ram_size / 1024 / 1024,
-		kvm->cfg.nrcpus, kvm->cfg.guest_name);
+	printf("  # %s start -k %s -m %Lu -c %d --name %s --disk %s\n", KVM_BINARY_NAME, kvm->cfg.kernel_filename,
+		(unsigned long long)kvm->cfg.ram_size / 1024 / 1024, kvm->cfg.nrcpus, kvm->cfg.guest_name, kvm->cfg.disk_image[0].filename);
 
 	if (init_list__init(kvm) < 0)
 		die ("Initialisation failed");
@@ -454,6 +457,7 @@ static struct kvm *kvmc_start_init(int argc, char * const* argv)
 int kvmc_cmd_start(int argc, const char ** argv)
 {
 	int ret = -EFAULT;
+
 	struct kvm *kvm = kvmc_start_init(argc, (char * const*)argv);
 	if (IS_ERR(kvm))
 		return PTR_ERR(kvm);

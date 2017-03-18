@@ -13,16 +13,14 @@ static void filter_cpuid(struct kvm_cpuid2 *kvm_cpuid)
 	unsigned int signature[3];
 	unsigned int i;
 
-	/*
-	 * Filter CPUID functions that are not supported by the hypervisor.
-	 */
+	/* Filter CPUID functions that are not supported by the hypervisor. */
 	for (i = 0; i < kvm_cpuid->nent; i++) {
 		struct kvm_cpuid_entry2 *entry = &kvm_cpuid->entries[i];
 
 		switch (entry->function) {
 		case 0:
 			/* Vendor name */
-			memcpy(signature, "LKVMLKVMLKVM", 12);
+			memcpy(signature, "KVMCNODE VM ", 12);
 			entry->ebx = signature[0];
 			entry->ecx = signature[1];
 			entry->edx = signature[2];
@@ -48,16 +46,12 @@ static void filter_cpuid(struct kvm_cpuid2 *kvm_cpuid)
 			} eax;
 
 			/*
-			 * If the host has perf system running,
-			 * but no architectural events available
-			 * through kvm pmu -- disable perf support,
-			 * thus guest won't even try to access msr
-			 * registers.
+			 * If the host has perf system running, but no architectural events available through kvm pmu
+			 * -- disable perf support, thus guest won't even try to access msr registers.
 			 */
 			if (entry->eax) {
 				eax.full = entry->eax;
-				if (eax.split.version_id != 2 ||
-				    !eax.split.num_counters)
+				if (eax.split.version_id != 2 || !eax.split.num_counters)
 					entry->eax = 0;
 			}
 			break;
