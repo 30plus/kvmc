@@ -1,0 +1,11 @@
+int kvmm_cmd_version(int argc, const char **argv, const char *prefix);
+int kvmm_cmd_help(int argc, const char **argv, const char *prefix);
+int kvmm_cmd_stat(int argc, const char **argv, const char *prefix);
+int kvmm_cmd_stop(int argc, const char **argv, const char *prefix);
+int kvmm_cmd_pause(int argc, const char **argv, const char *prefix);
+int kvmm_cmd_resume(int argc, const char **argv, const char *prefix);
+int kvmm_cmd_balloon(int argc, const char **argv, const char *prefix);
+int kvmm_cmd_debug(int argc, const char **argv, const char *prefix);
+int kvmm_cmd_list(int argc, const char **argv, const char *prefix);
+int kvmm_cmd_start(int argc, const char **argv, const char *prefix);
+int kvmm_cmd_setup(int argc, const char **argv, const char *prefix);
