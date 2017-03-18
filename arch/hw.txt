@@ -1,8 +1,0 @@
-[Aarch64]
-	http://www.96boards.org
-
-[MIPS]
-	http://www.loongson.cn/product/system/
-
-[PPC64]
-	https://www.raptorengineering.com/TALOS/prerelease.php
