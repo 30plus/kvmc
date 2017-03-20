@@ -1,1 +1,20 @@
-QEMU-free KVM Client/Connector/Controller
+<!doctype html>
+<html lang=en>
+<head>
+	<meta charset="utf8">
+	<title>KVMC</title>
+</head>
+<body>
+	<h2 align="center">KVMC: QEMU-free KVM Client/Connector/Controller</h2>
+	<p>QEMU is a full system emulator, and KVM is simply a CPU virtualization implementation.
+	While replacing the CPU emulation part with KVM, we get the popular QEMU/KVM scheme.
+	</p>
+	<p>With the help of evolving exploration on device virtualization, the device emulation
+	part of QEMU is mostly not a necessity, so do the whole QEMU codebase.</p>
+	<p>One said that to fulfill a special task, writing from scratch took them several months,
+	but another approach of customizing QEMU shows no clear hope of being ready. The relatively
+	large codebase of QEMU is a heavy burden over device developers.</p>
+	<p>A brand new toolstack that benifits from both KVM and developing device virtualization
+	seems to be a better solution, from both deployment and development aspect.</p>
+</body>
+</html>
