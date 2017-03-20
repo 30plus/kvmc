@@ -10,13 +10,16 @@ languages(for platform integration). It should make use of VT-d enhanced device 
 legacy ones in the meantime.
 
 ## Why are we
-* KVM stands for VT-x, and is not a full system virtualization solution, we are moving on to VT-d
-    * Many of VT-d tricks burst in to horizon, like IOMMU, SR-IOV, PCI-passthrough, VFIO, ...
-    * A relatively simpler context allows VT-d developers quickly apply their implementations
+* KVM offers CPU virtualization only, and is not a full system virtualization solution, that's where QEMU finds its
+  place. We are moving on to device virtualizaton for better performance, dependency on QEMU seems to be weaker.
+    * Many of device virtualization tricks burst in to horizon, like IOMMU, SR-IOV, sPAPR, PCI-passthrough, VFIO, ...
+    * A relatively simpler context allows device virtualization developers quickly apply their implementations
 * Existing implementations, like QEMU/KVM, novm, kvmtool, have their limitations
     * As mainstream solution, QEMU endures relatively large codebase, most of which is unnecessary,
       under virtualization environment(CPU part is replaced by KVM, and device part is been replaced by
       evolving VT-d ones)
+    * [QEMU-lite](https://github.com/01org/qemu-lite) is a working-on project that's smaller than full-functional
+      QEMU at runtime, but won't reduce much of programmers' burden in the near future
     * [KVMTOOL](https://lwn.net/Articles/436781/) targets on been KVM functionality testing utility, and is not for
       production, moreover, it seems to have been abandoned
     * [NOVM](https://github.com/google/novm) targets on restricted hardware and use case(Google Cloud Platform),
@@ -53,6 +56,6 @@ what vulnerabilities may still be lurking in the code.
 ## References
 * [Thread for original discussion on motivation of similiar project](http://thread.gmane.org/gmane.linux.kernel/962051/focus=962620)
 * [Another detailed example in the lwn.net article](http://lwn.net/Articles/658511/)
-* https://cloudplatform.googleblog.com/2017/01/7-ways-we-harden-our-KVM-hypervisor-at-Google-Cloud-security-in-plaintext.html
+* [7 ways we harden our KVM hypervisor at Google Cloud](https://cloudplatform.googleblog.com/2017/01/7-ways-we-harden-our-KVM-hypervisor-at-Google-Cloud-security-in-plaintext.html)
 * https://news.ycombinator.com/item?id=13484926
 * https://systems.cs.columbia.edu/projects/kvm-arm/
