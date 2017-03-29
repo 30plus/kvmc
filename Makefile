@@ -1,5 +1,10 @@
-include util/utilities.mak
-include util/feature-tests.mak
+ENABLE_VNC	:= y
+ENABLE_SDL	:= y
+ENABLE_GTK	:= y
+ENABLE_ZLIB	:= y
+ENABLE_AIO	:= y
+ENABLE_STATIC	:= y
+PIE_FLAGS	= -no-pie
 
 # ARCH = x86_64, powerpc, arm64, mips
 ARCH	?= $(shell uname -m | sed -e s/ppc.*/powerpc/ -e s/aarch64.*/arm64/ -e s/mips64/mips/)
@@ -46,19 +51,10 @@ ifeq (,$(ARCH_INCLUDE))
 endif
 
 # Detect optional features.
-# On a given system, some libs may link statically, some may not; so, check both and only build those that link!
-ifeq ($(call try-build,$(SOURCE_STRLCPY),$(CFLAGS),$(LDFLAGS)),y)
-	CFLAGS_DYNOPT	+= -DHAVE_STRLCPY
-endif
-
-ifneq ($(call try-build,$(SOURCE_BFD),$(CFLAGS),$(LDFLAGS) -lbfd -static),y)
-	NOTFOUND	+= bfd
-endif
-
 ifeq (y,$(ARCH_HAS_FRAMEBUFFER))
 	CFLAGS_GTK3 := $(shell pkg-config --cflags gtk+-3.0 2>/dev/null)
 	LDFLAGS_GTK3 := $(shell pkg-config --libs gtk+-3.0 2>/dev/null)
-	ifeq ($(call try-build,$(SOURCE_GTK3),$(CFLAGS) $(CFLAGS_GTK3),$(LDFLAGS) $(LDFLAGS_GTK3)),y)
+	ifeq (${ENABLE_GTK}, y)
 		OBJS_DYNOPT	+= hw/ui/gtk3.o
 		CFLAGS_DYNOPT	+= -DCONFIG_HAS_GTK3 $(CFLAGS_GTK3)
 		LIBS_DYNOPT	+= $(LDFLAGS_GTK3)
@@ -66,7 +62,7 @@ ifeq (y,$(ARCH_HAS_FRAMEBUFFER))
 		NOTFOUND	+= GTK3
 	endif
 
-	ifeq ($(call try-build,$(SOURCE_VNCSERVER),$(CFLAGS),$(LDFLAGS) -lvncserver),y)
+	ifeq (${ENABLE_VNC}, y)
 		OBJS_DYNOPT	+= hw/ui/vnc.o
 		CFLAGS_DYNOPT	+= -DCONFIG_HAS_VNCSERVER
 		LIBS_DYNOPT	+= -lvncserver
@@ -74,7 +70,7 @@ ifeq (y,$(ARCH_HAS_FRAMEBUFFER))
 		NOTFOUND	+= vncserver
 	endif
 
-	ifeq ($(call try-build,$(SOURCE_SDL),$(CFLAGS),$(LDFLAGS) -lSDL),y)
+	ifeq (${ENABLE_SDL}, y)
 		OBJS_DYNOPT	+= hw/ui/sdl.o
 		CFLAGS_DYNOPT	+= -DCONFIG_HAS_SDL
 		LIBS_DYNOPT	+= -lSDL
@@ -83,53 +79,33 @@ ifeq (y,$(ARCH_HAS_FRAMEBUFFER))
 	endif
 endif
 
-ifeq ($(call try-build,$(SOURCE_ZLIB),$(CFLAGS),$(LDFLAGS) -lz),y)
+ifeq (${ENABLE_ZLIB}, y)
 	CFLAGS_DYNOPT	+= -DCONFIG_HAS_ZLIB
 	LIBS_DYNOPT	+= -lz
 else
 	NOTFOUND	+= zlib
 endif
 
-ifeq ($(call try-build,$(SOURCE_AIO),$(CFLAGS),$(LDFLAGS) -laio),y)
+ifeq (${ENABLE_AIO}, y)
 	CFLAGS_DYNOPT	+= -DCONFIG_HAS_AIO
 	LIBS_DYNOPT	+= -laio
 else
 	NOTFOUND	+= aio
 endif
 
-ifeq ($(LTO),1)
-	FLAGS_LTO := -flto
-	ifeq ($(call try-build,$(SOURCE_HELLO),$(CFLAGS),$(LDFLAGS) $(FLAGS_LTO)),y)
-		CFLAGS		+= $(FLAGS_LTO)
-	endif
-endif
-
-ifeq ($(call try-build,$(SOURCE_STATIC),$(CFLAGS),$(LDFLAGS) -static),y)
-	CFLAGS		+= -DCONFIG_GUEST_INIT
-	GUEST_OBJS	= util/guest/guest_init.o
-	ifeq ($(ARCH_PRE_INIT),)
-		GUEST_INIT_FLAGS	+= -static $(PIE_FLAGS)
-	else
-		CFLAGS			+= -DCONFIG_GUEST_PRE_INIT
-		GUEST_INIT_FLAGS	+= -DCONFIG_GUEST_PRE_INIT
-		GUEST_OBJS		+= util/guest/guest_pre_init.o
-	endif
+CFLAGS		+= -DCONFIG_GUEST_INIT
+GUEST_OBJS	= util/guest/guest_init.o
+ifeq ($(ARCH_PRE_INIT),)
+	GUEST_INIT_FLAGS	+= -static# $(PIE_FLAGS)
 else
-$(warning No static libc found. Skipping guest init)
-	NOTFOUND        += static-libc
+	CFLAGS			+= -DCONFIG_GUEST_PRE_INIT
+	GUEST_INIT_FLAGS	+= -DCONFIG_GUEST_PRE_INIT
+	GUEST_OBJS		+= util/guest/guest_pre_init.o
 endif
 
 ifeq (y,$(ARCH_WANT_LIBFDT))
-	ifneq ($(call try-build,$(SOURCE_LIBFDT),$(CFLAGS),-lfdt),y)
-		$(error No libfdt found. Please install libfdt-dev package)
-	else
-		CFLAGS_DYNOPT	+= -DCONFIG_HAS_LIBFDT
-		LIBS_DYNOPT	+= -lfdt
-	endif
-endif
-
-ifeq ($(call try-build,$(SOURCE_HELLO),$(CFLAGS),-no-pie),y)
-	PIE_FLAGS	+= -no-pie
+	CFLAGS_DYNOPT	+= -DCONFIG_HAS_LIBFDT
+	LIBS_DYNOPT	+= -lfdt
 endif
 
 ifneq ($(NOTFOUND),)
@@ -139,8 +115,8 @@ endif
 DEFINES	+= -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DBUILD_ARCH='"$(ARCH)"'
 
 CFLAGS	+= $(DEFINES) -Iinclude -I$(ARCH_INCLUDE) -fno-strict-aliasing -O2
-CFLAGS	+= -Werror -Wall -Wformat=2 -Winit-self -Wnested-externs -Wno-system-headers -Wundef -Wunused \
-	-Wold-style-definition -Wredundant-decls -Wsign-compare -Wstrict-prototypes -Wvolatile-register-var -Wwrite-strings -Wno-format-nonliteral
+CFLAGS	+= -Werror -Wall -Wformat=2 -Winit-self -Wnested-externs -Wno-system-headers -Wundef -Wunused -Wold-style-definition \
+	-Wredundant-decls -Wsign-compare -Wstrict-prototypes -Wvolatile-register-var -Wwrite-strings -Wno-format-nonliteral
 
 all: util/guest/init util/guest/pre_init libkvmc.so kvmc
 
