@@ -13,15 +13,12 @@ ssize_t xread(int fd, void *buf, size_t count);
 ssize_t xwrite(int fd, const void *buf, size_t count);
 
 ssize_t read_file(int fd, char *buf, size_t max_size);
-
 ssize_t read_in_full(int fd, void *buf, size_t count);
-ssize_t write_in_full(int fd, const void *buf, size_t count);
 
 ssize_t xpread(int fd, void *buf, size_t count, off_t offset);
 ssize_t xpwrite(int fd, const void *buf, size_t count, off_t offset);
 
 ssize_t pread_in_full(int fd, void *buf, size_t count, off_t offset);
-ssize_t pwrite_in_full(int fd, const void *buf, size_t count, off_t offset);
 
 ssize_t xreadv(int fd, const struct iovec *iov, int iovcnt);
 ssize_t xwritev(int fd, const struct iovec *iov, int iovcnt);

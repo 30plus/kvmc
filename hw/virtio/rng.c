@@ -1,5 +1,3 @@
-#include "kvm/virtio-rng.h"
-
 #include "kvm/virtio-pci-dev.h"
 
 #include "kvm/virtio.h"

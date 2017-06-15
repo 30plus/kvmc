@@ -23,7 +23,6 @@
 #include "kvm/virtio-scsi.h"
 #include "kvm/virtio-blk.h"
 #include "kvm/virtio-net.h"
-#include "kvm/virtio-rng.h"
 #include "kvm/ioeventfd.h"
 #include "kvm/virtio-9p.h"
 #include "kvm/barrier.h"

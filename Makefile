@@ -12,7 +12,7 @@ CFLAGS	:= -fPIC
 LDFLAGS	:=
 
 KVMC_SRC = $(wildcard src/cmds/*.c) $(wildcard hw/virtio/*.c) $(wildcard src/net/*.c) $(wildcard util/*.c) $(wildcard hw/*.c) $(wildcard hw/disk/*.c)
-OBJS	+= src/devices.o util/guest/compat.o src/irq.o src/kvm-cpu.o src/kvm.o src/term.o src/ioeventfd.o src/cmds.o src/kvm-ipc.o ${KVMC_SRC:.c=.o}
+OBJS	+= src/devices.o util/guest/compat.o src/irq.o src/cpu.o src/kvm.o src/term.o src/ioeventfd.o src/cmds.o src/ipc.o ${KVMC_SRC:.c=.o}
 
 ifeq ($(ARCH),x86_64)
 	DEFINES += -DCONFIG_X86_64 -DCONFIG_X86

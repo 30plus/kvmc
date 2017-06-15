@@ -34,9 +34,8 @@ static pthread_t thread;
 static int kvm__create_socket(struct kvm *kvm)
 {
 	char full_name[PATH_MAX];
-	int s;
 	struct sockaddr_un local;
-	int len, r;
+	int len, r, s;
 
 	/* This usually 108 bytes long */
 	BUILD_BUG_ON(sizeof(local.sun_path) < 32);
@@ -80,8 +79,7 @@ void kvm__remove_socket(const char *name)
 {
 	char full_name[PATH_MAX];
 
-	snprintf(full_name, sizeof(full_name), "%s/%s%s",
-		 kvm__get_dir(), name, KVM_SOCK_SUFFIX);
+	snprintf(full_name, sizeof(full_name), "%s/%s%s", kvm__get_dir(), name, KVM_SOCK_SUFFIX);
 	unlink(full_name);
 }
 
@@ -91,8 +89,7 @@ int kvmc_get_by_name(const char *name)
 	char sock_file[PATH_MAX];
 	struct sockaddr_un local;
 
-	snprintf(sock_file, sizeof(sock_file), "%s/%s%s",
-		 kvm__get_dir(), name, KVM_SOCK_SUFFIX);
+	snprintf(sock_file, sizeof(sock_file), "%s/%s%s", kvm__get_dir(), name, KVM_SOCK_SUFFIX);
 	s = socket(AF_UNIX, SOCK_STREAM, 0);
 
 	local.sun_family = AF_UNIX;
@@ -102,8 +99,7 @@ int kvmc_get_by_name(const char *name)
 	r = connect(s, (struct sockaddr *)&local, len);
 	if (r < 0 && errno == ECONNREFUSED) {
 		/* Tell the user clean ghost socket file */
-		pr_err("\"%s\" could be a ghost socket file, please remove it",
-				sock_file);
+		pr_err("\"%s\" could be a ghost socket file, please remove it", sock_file);
 		return r;
 	} else if (r < 0) {
 		return r;
@@ -186,6 +182,26 @@ int kvm_ipc__register_handler(u32 type, void (*cb)(struct kvm *kvm, int fd, u32 
 	up_write(&msgs_rwlock);
 
 	return 0;
+}
+
+static ssize_t write_in_full(int fd, const void *buf, size_t count)
+{
+	const char *p = buf;
+	ssize_t total = 0;
+
+	while (count > 0) {
+		ssize_t nr = xwrite(fd, p, count);
+		if (nr < 0)
+			return -1;
+		if (nr == 0) {
+			errno = ENOSPC;
+			return -1;
+		}
+		count -= nr;
+		total += nr;
+		p += nr;
+	}
+	return total;
 }
 
 int kvm_ipc__send(int fd, u32 type)
@@ -375,10 +391,7 @@ static void handle_vmstate(struct kvm *kvm, int fd, u32 type, u32 len, u8 *msg)
 		pr_warning("Failed sending VMSTATE");
 }
 
-/*
- * Serialize debug printout so that the output of multiple vcpus does not
- * get mixed up:
- */
+/* Serialize debug printout so that the output of multiple vcpus does not get mixed up: */
 static int printout_done;
 
 static void handle_sigusr1(int sig)

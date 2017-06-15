@@ -77,29 +77,6 @@ ssize_t read_in_full(int fd, void *buf, size_t count)
 	return total;
 }
 
-ssize_t write_in_full(int fd, const void *buf, size_t count)
-{
-	const char *p = buf;
-	ssize_t total = 0;
-
-	while (count > 0) {
-		ssize_t nr;
-
-		nr = xwrite(fd, p, count);
-		if (nr < 0)
-			return -1;
-		if (nr == 0) {
-			errno = ENOSPC;
-			return -1;
-		}
-		count -= nr;
-		total += nr;
-		p += nr;
-	}
-
-	return total;
-}
-
 /* Same as pread(2) except that this function never returns EAGAIN or EINTR. */
 ssize_t xpread(int fd, void *buf, size_t count, off_t offset)
 {
@@ -142,29 +119,6 @@ ssize_t pread_in_full(int fd, void *buf, size_t count, off_t offset)
 			return -1;
 		}
 
-		count -= nr;
-		total += nr;
-		p += nr;
-		offset += nr;
-	}
-	return total;
-}
-
-ssize_t pwrite_in_full(int fd, const void *buf, size_t count, off_t offset)
-{
-	const char *p = buf;
-	ssize_t total = 0;
-
-	while (count > 0) {
-		ssize_t nr;
-
-		nr = xpwrite(fd, p, count, offset);
-		if (nr < 0)
-			return -1;
-		if (nr == 0) {
-			errno = ENOSPC;
-			return -1;
-		}
 		count -= nr;
 		total += nr;
 		p += nr;

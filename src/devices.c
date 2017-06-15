@@ -6,8 +6,8 @@
 #include <linux/rbtree.h>
 
 struct device_bus {
-	struct rb_root	root;
-	int		dev_num;
+	struct rb_root root;
+	int dev_num;
 };
 
 static struct device_bus device_trees[DEVICE_BUS_MAX] = {[0 ... (DEVICE_BUS_MAX - 1)] = { RB_ROOT, 0 },};

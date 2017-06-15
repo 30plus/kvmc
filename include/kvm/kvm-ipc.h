@@ -15,8 +15,7 @@ enum {
 	KVM_IPC_VMSTATE	= 8,
 };
 
-int kvm_ipc__register_handler(u32 type, void (*cb)(struct kvm *kvm,
-				int fd, u32 type, u32 len, u8 *msg));
+int kvm_ipc__register_handler(u32 type, void (*cb)(struct kvm *kvm, int fd, u32 type, u32 len, u8 *msg));
 int kvm_ipc__init(struct kvm *kvm);
 int kvm_ipc__exit(struct kvm *kvm);
 

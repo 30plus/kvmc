@@ -27,8 +27,28 @@ static int qcow_write_refcount_table(struct qcow *q);
 static u64 qcow_alloc_clusters(struct qcow *q, u64 size, int update_ref);
 static void  qcow_free_clusters(struct qcow *q, u64 clust_start, u64 size);
 
-static inline int qcow_pwrite_sync(int fd,
-	void *buf, size_t count, off_t offset)
+static ssize_t pwrite_in_full(int fd, const void *buf, size_t count, off_t offset)
+{
+	const char *p = buf;
+	ssize_t total = 0;
+
+	while (count > 0) {
+		ssize_t nr = xpwrite(fd, p, count, offset);
+		if (nr < 0)
+			return -1;
+		if (nr == 0) {
+			errno = ENOSPC;
+			return -1;
+		}
+		count -= nr;
+		total += nr;
+		p += nr;
+		offset += nr;
+	}
+	return total;
+}
+
+static inline int qcow_pwrite_sync(int fd, void *buf, size_t count, off_t offset)
 {
 	if (pwrite_in_full(fd, buf, count, offset) < 0)
 		return -1;

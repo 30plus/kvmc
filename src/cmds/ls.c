@@ -15,8 +15,7 @@ void kvmc_help_ls(void)
 
 int get_vmstate(int sock)
 {
-	int vmstate;
-	int r;
+	int vmstate, r;
 
 	r = kvm_ipc__send(sock, KVM_IPC_VMSTATE);
 	if (r < 0)
@@ -52,7 +51,7 @@ static int print_guest(const char *name, int sock)
 	return 0;
 }
 
-static void kvm_ls_rootfs(void)
+static void kvmc_ls_rootfs(void)
 {
 	struct dirent *dirent;
 	DIR *dir = opendir(kvm__get_dir());
@@ -87,7 +86,7 @@ int kvmc_cmd_ls(int argc, const char **argv)
 	}
 	if (rootfs) {
 		puts("------------ rootfs ----------------");
-		kvm_ls_rootfs();
+		kvmc_ls_rootfs();
 	}
 	return 0;
 }
