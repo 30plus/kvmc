@@ -3,7 +3,7 @@ User-space toolkit to manipulate and control KVM guests.
 
 Virtualization is all about isolation and efficiency, and we try to eliminate QEMU blocks in the following diagram.
 
-![Position](doc/kvm-qemu-libvirt.jpg)
+![Position](doc/kvm-qemu-libvirt.png)
 
 The objective is an efficient, developer friendly, production ready dynamic library, with bindings to different
 languages(for platform integration). It should make use of VT-d enhanced device emulations, and probably a few
