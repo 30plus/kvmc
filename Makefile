@@ -9,10 +9,10 @@ PIE_FLAGS	= -no-pie
 # ARCH = x86_64, powerpc, arm64, mips
 ARCH	?= $(shell uname -m | sed -e s/ppc.*/powerpc/ -e s/aarch64.*/arm64/ -e s/mips64/mips/)
 CFLAGS	:= -fPIC
-LDFLAGS	:=
+LDFLAGS	:= -lbfd
 
-KVMC_SRC = $(wildcard src/cmds/*.c) $(wildcard hw/virtio/*.c) $(wildcard src/net/*.c) $(wildcard util/*.c) $(wildcard hw/*.c) $(wildcard hw/disk/*.c)
-OBJS	+= src/devices.o util/guest/compat.o src/irq.o src/cpu.o src/kvm.o src/term.o src/ioeventfd.o src/cmds.o src/ipc.o ${KVMC_SRC:.c=.o}
+KVMC_SRC = $(wildcard src/*.c) $(wildcard src/cmds/*.c) $(wildcard hw/virtio/*.c) $(wildcard src/net/*.c) $(wildcard util/*.c) $(wildcard hw/*.c) $(wildcard hw/disk/*.c)
+OBJS	+= util/guest/compat.o ${KVMC_SRC:.c=.o}
 
 ifeq ($(ARCH),x86_64)
 	DEFINES += -DCONFIG_X86_64 -DCONFIG_X86
@@ -115,7 +115,7 @@ endif
 DEFINES	+= -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DBUILD_ARCH='"$(ARCH)"'
 
 CFLAGS	+= $(DEFINES) -Iinclude -I$(ARCH_INCLUDE) -fno-strict-aliasing -O2
-CFLAGS	+= -Werror -Wall -Wformat=2 -Winit-self -Wnested-externs -Wno-system-headers -Wundef -Wunused -Wold-style-definition \
+CFLAGS	+= -Wall -Wformat=2 -Winit-self -Wnested-externs -Wno-system-headers -Wundef -Wunused -Wold-style-definition \
 	-Wredundant-decls -Wsign-compare -Wstrict-prototypes -Wvolatile-register-var -Wwrite-strings -Wno-format-nonliteral
 
 all: util/guest/init util/guest/pre_init libkvmc.so kvmc

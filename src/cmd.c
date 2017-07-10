@@ -3,8 +3,6 @@
 #include <string.h>
 #include <kvmc.h>
 
-#define KVMC_VERSION    "v0.1.d"
-
 void kvmc_help_dummy(void) {}
 void kvmc_help(void);
 

@@ -5,4 +5,5 @@
 	http://www.loongson.cn/product/system/
 
 [PPC64]
-	https://www.raptorengineering.com/TALOS/prerelease.php
+	[Crowd funding failed] https://www.raptorengineering.com/TALOS/prerelease.php
+	[Delayed]https://www.powerpc-notebook.org/en/

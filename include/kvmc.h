@@ -5,7 +5,7 @@
 #define KVM_PID_FILE_PATH	"/.kvmc/"
 
 /* Version: "v" + Major + Minor [+ <d(raft)|a(lpha)|b(eta)>] */
-#define KVMC_VERSION		"v0.1.d"
+#define KVMC_VERSION		"v0.1.e"
 
 /* A subcommand in kvmc should be relatively short */
 #define KVMC_CMD_MAX_LEN	16
