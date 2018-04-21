@@ -24,6 +24,9 @@ legacy ones in the meantime.
       production, moreover, it seems to have been abandoned
     * [NOVM](https://github.com/google/novm) targets on restricted hardware and use case(Google Cloud Platform),
       and most of all, it seems to be turned private
+    * [Nitro](Amazon) aims on constructing baremetal, lightweihted Virtualization platform, that supports KVM, Xen,
+      containers, accesses all PMCs, similiar to NOVM, it's not available for public use.
+
 * Security is a not-so-important, and so important topic, larger codebase is likely to introduce more bugs
 
 ### From the original announcement email on KVMTOOL
