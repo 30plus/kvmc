@@ -8,19 +8,25 @@
 #include <linux/byteorder.h>
 #include <linux/kernel.h>
 #include <linux/kvm.h>
+#include <linux/sizes.h>
 
-/* Those names are not defined for ARM (yet) */
-#ifndef KVM_VGIC_V3_ADDR_TYPE_DIST
-#define KVM_VGIC_V3_ADDR_TYPE_DIST 2
-#endif
-
-#ifndef KVM_VGIC_V3_ADDR_TYPE_REDIST
-#define KVM_VGIC_V3_ADDR_TYPE_REDIST 3
-#endif
+#define IRQCHIP_GIC	0
 
 static int gic_fd = -1;
 static u64 gic_redists_base;
 static u64 gic_redists_size;
+static u64 gic_msi_base;
+static u64 gic_msi_size = 0;
+static bool vgic_is_init = false;
+
+struct kvm_irqfd_line {
+	unsigned int gsi;
+	int trigger_fd;
+	int resample_fd;
+	struct list_head list;
+};
+
+static LIST_HEAD(irqfd_lines);
 
 int irqchip_parser(const struct option *opt, const char *arg, int unset)
 {
@@ -28,14 +34,110 @@ int irqchip_parser(const struct option *opt, const char *arg, int unset)
 
 	if (!strcmp(arg, "gicv2")) {
 		*type = IRQCHIP_GICV2;
+	} else if (!strcmp(arg, "gicv2m")) {
+		*type = IRQCHIP_GICV2M;
 	} else if (!strcmp(arg, "gicv3")) {
 		*type = IRQCHIP_GICV3;
+	} else if (!strcmp(arg, "gicv3-its")) {
+		*type = IRQCHIP_GICV3_ITS;
 	} else {
 		pr_err("irqchip: unknown type \"%s\"\n", arg);
 		return -1;
 	}
 
 	return 0;
+}
+
+static int irq__setup_irqfd_lines(struct kvm *kvm)
+{
+	int ret;
+	struct kvm_irqfd_line *line, *tmp;
+
+	list_for_each_entry_safe(line, tmp, &irqfd_lines, list) {
+		ret = irq__common_add_irqfd(kvm, line->gsi, line->trigger_fd, line->resample_fd);
+		if (ret < 0) {
+			pr_err("Failed to register IRQFD");
+			return ret;
+		}
+		list_del(&line->list);
+		free(line);
+	}
+	return 0;
+}
+
+static int irq__routing_init(struct kvm *kvm)
+{
+	int r;
+	int irqlines = ALIGN(irq__get_nr_allocated_lines(), 32);
+
+	/*
+	 * This describes the default routing that the kerneluses without any
+	 * routing explicitly set up via KVM_SET_GSI_ROUTING. So we don't need to
+	 * commit these setting right now. The first actual user(MSI routing) will
+	 * engage these mappings then.
+	 */
+	for (next_gsi = 0; next_gsi < irqlines; next_gsi++) {
+		r = irq__allocate_routing_entry();
+		if (r)
+			return r;
+
+		irq_routing->entires[irq_routing->nr++] = (struct kvm_irq_routing_entry) {
+			.gsi = next_gsi,
+			.type = KVM_IRQ_ROUTING_IRQCHIP,
+			.u.irqchip.irqchip = IRQCHIP_GIC,
+			.u.irqchip.pin = next_gsi,
+		};
+	}
+	return 0;
+}
+
+static int gic__create_its_frame(struct kvm *kvm, u64 its_frame_addr)
+{
+	struct kvm_create_device its_device = {
+		.type = KVM_DEV_TYPE_ARM_VGIC_ITS,
+		.flags = 0,
+	};
+	struct kvm_device_attr its_attr = {
+		.group = KVM_DEV_ARM_VGIC_GRP_ADDR,
+		.attr = KVM_VGIC_ITS_ADDR_TYPE,
+		.addr = (u64)(unsigned long)&its_frame_addr,
+	};
+	struct kvm_device_attr its_init_attr = {
+		.group = KVM_DEV_ARM_VGIC_GRP_CTRL,
+		.attr = KVM_DEV_ARM_VGIC_CTRL_INIT,
+	};
+
+	int err = ioctl(kvm->vm_fd, KVM_CREATE_DEVICE, &its_device);
+	if (err) {
+		fprintf(stderr, "GICv3 ITS requested, but kernel doesn't support\
+				 it.\nTry --irqchip=gicv3 instead\n");
+		return err;
+	}
+
+	err = ioctl(its_device.fd, KVM_HAS_DEVICE_ATTR, &its_attr);
+	if (err) {
+		close(its_device.fd);
+		its_device.fd = -1;
+		return err;
+	}
+
+	err = ioctl(its_device.fd, KVM_SET_DEVICE_ATTR, &its_attr);
+	if (err)
+		return err;
+
+	return ioctl(its_device.fd, KVM_SET_DEVICE_ATTR, &its_init_attr);
+}
+
+static int gic__create_msi_frame(struct kvm *kvm, enum irqchip_type type, u64 msi_frame_addr)
+{
+	switch(type) {
+	case IRQCHIP_GICV2M:
+		return gic__create_gicv2m_frame(kvm, msi_frame_addr);
+	case IRQCHIP_GICV3_ITS:
+		return gic__create_its_frame(kvm, msi_frame_addr);
+	default:	/* No MSI frame needed */
+		return 0;
+	}
 }
 
 static int gic__create_device(struct kvm *kvm, enum irqchip_type type)
@@ -63,10 +165,12 @@ static int gic__create_device(struct kvm *kvm, enum irqchip_type type)
 
 	switch (type) {
 	case IRQCHIP_GICV2:
+	case IRQCHIP_GICV2M:
 		gic_device.type = KVM_DEV_TYPE_ARM_VGIC_V2;
 		dist_attr.attr  = KVM_VGIC_V2_ADDR_TYPE_DIST;
 		break;
 	case IRQCHIP_GICV3:
+	case IRQCHIP_GICV3_ITS:
 		gic_device.type = KVM_DEV_TYPE_ARM_VGIC_V3;
 		dist_attr.attr  = KVM_VGIC_V3_ADDR_TYPE_DIST;
 		break;
@@ -83,6 +187,7 @@ static int gic__create_device(struct kvm *kvm, enum irqchip_type type)
 		err = ioctl(gic_fd, KVM_SET_DEVICE_ATTR, &cpu_if_attr);
 		break;
 	case IRQCHIP_GICV3:
+	case IRQCHIP_GICV3_ITS:
 		err = ioctl(gic_fd, KVM_SET_DEVICE_ATTR, &redist_attr);
 		break;
 	}
@@ -90,6 +195,10 @@ static int gic__create_device(struct kvm *kvm, enum irqchip_type type)
 		goto out_err;
 
 	err = ioctl(gic_fd, KVM_SET_DEVICE_ATTR, &dist_attr);
+	if (err)
+		goto out_err;
+
+	err = gic__create_msi_frame(kvm, type, gic_msi_base);
 	if (err)
 		goto out_err;
 
@@ -134,11 +243,20 @@ int gic__create(struct kvm *kvm, enum irqchip_type type)
 	int err;
 
 	switch (type) {
+	case IRQCHIP_GICV2M:
+		gic_msi_size = KVM_VGIC_V2M_SIZE;
+		gic_msi_base = ARM_GIC_CPUI_BASE - gic_msi_size;
+		break;
 	case IRQCHIP_GICV2:
 		break;
+	case IRQCHIP_GICV3_ITS:
+		/* The 64K page with the doorbell is included. */
+		gic_msi_size = KVM_VGIC_V3_ITS_SIZE;
+		/* fall through */
 	case IRQCHIP_GICV3:
 		gic_redists_size = kvm->cfg.nrcpus * ARM_GIC_REDIST_SIZE;
 		gic_redists_base = ARM_GIC_DIST_BASE - gic_redists_size;
+		gic_msi_base = gic_redists_base - gic_msi_size;
 		break;
 	default:
 		return -ENODEV;
@@ -184,30 +302,41 @@ static int gic__init_gic(struct kvm *kvm)
 			return ret;
 	}
 
+	irq__routing_init(kvm);
+
 	if (!ioctl(gic_fd, KVM_HAS_DEVICE_ATTR, &vgic_init_attr)) {
 		ret = ioctl(gic_fd, KVM_SET_DEVICE_ATTR, &vgic_init_attr);
 		if (ret)
 			return ret;
 	}
 
-	return 0;
+	kvm->msix_needs_devid = kvm__supports_vm_extension(kvm, KVM_CAP_MSI_DEVID);
+	vgic_is_init = true;
+	return irq__setup_irqfd_lines(kvm);
 }
 late_init(gic__init_gic)
 
-void gic__generate_fdt_nodes(void *fdt, u32 phandle, enum irqchip_type type)
+void gic__generate_fdt_nodes(void *fdt, enum irqchip_type type)
 {
-	const char *compatible;
+	const char *compatible, *msi_compatible = NULL;
+	u64 msi_prop[2];
 	u64 reg_prop[] = {
 		cpu_to_fdt64(ARM_GIC_DIST_BASE), cpu_to_fdt64(ARM_GIC_DIST_SIZE),
-		0, 0,				/* to be filled */
+		0, 0,	/* to be filled */
 	};
 
 	switch (type) {
+	case IRQCHIP_GICV2M:
+		msi_compatible = "arm,gic-v2m-frame";
+		/* fall through */
 	case IRQCHIP_GICV2:
 		compatible = "arm,cortex-a15-gic";
 		reg_prop[2] = cpu_to_fdt64(ARM_GIC_CPUI_BASE);
 		reg_prop[3] = cpu_to_fdt64(ARM_GIC_CPUI_SIZE);
 		break;
+	case IRQCHIP_GICV3_ITS:
+		msi_compatible = "arm,gic-v3-its";
+		/* fall-through */
 	case IRQCHIP_GICV3:
 		compatible = "arm,gic-v3";
 		reg_prop[2] = cpu_to_fdt64(gic_redists_base);
@@ -222,7 +351,23 @@ void gic__generate_fdt_nodes(void *fdt, u32 phandle, enum irqchip_type type)
 	_FDT(fdt_property_cell(fdt, "#interrupt-cells", GIC_FDT_IRQ_NUM_CELLS));
 	_FDT(fdt_property(fdt, "interrupt-controller", NULL, 0));
 	_FDT(fdt_property(fdt, "reg", reg_prop, sizeof(reg_prop)));
-	_FDT(fdt_property_cell(fdt, "phandle", phandle));
+	_FDT(fdt_property_cell(fdt, "phandle", PHANDLE_GIC));
+	_FDT(fdt_property_cell(fdt, "#address-cells", 2));
+	_FDT(fdt_property_cell(fdt, "#size-cells", 2));
+
+	if (msi_compatible) {
+		_FDT(fdt_property(fdt, "ranges", NULL, 0));
+
+		_FDT(fdt_begin_node(fdt, "misc"));
+		_FDT(fdt_property_string(fdt, "compatible", msi_compatible));
+		_FDT(fdt_property(fdt, "msi-controller", NULL, 0));
+		_FDT(fdt_property_cell(fdt, "phandle", PHANDLE_MSI));
+		msi_prop[0] = cpu_to_fdt64(gic_msi_base);
+		msi_prop[1] = cpu_to_fdt64(gic_msi_size);
+		_FDT(fdt_property(fdt, "reg", msi_prop, sizeof(msi_prop)));
+		_FDT(fdt_end_node(fdt));
+	}
+
 	_FDT(fdt_end_node(fdt));
 }
 
@@ -246,4 +391,44 @@ void kvm__irq_trigger(struct kvm *kvm, int irq)
 {
 	kvm__irq_line(kvm, irq, VIRTIO_IRQ_HIGH);
 	kvm__irq_line(kvm, irq, VIRTIO_IRQ_LOW);
+}
+
+int gic__add_irqfd(struct kvm *kvm, unsigned int gsi, int trigger_fd, int resample_fd)
+{
+	struct kvm_irqfd_line *line;
+
+	if (vgic_is_init)
+		return irq__common_add_irqfd(kvm, gsi, trigger_fd, resample_fd);
+
+	/* Postpone the routing setup until we have a distributor */
+	line = malloc(sizeof(*line));
+	if (!line)
+		return -ENOMEM;
+
+	*line = (struct kvm_irqfd_line) {
+		.gsi			= gsi,
+		.trigger_fd		= trigger_fd,
+		.resample_fd	= resample_fd,
+	};
+	list_add(&line->list, &irqfd_lines);
+	return 0;
+}
+
+void gic__del_irqfd(struct kvm *kvm, unsigned int gsi, int trigger_fd)
+{
+	struct kvm_irqfd_line *line;
+
+	if (vgic_is_init) {
+		irq__common_del_irqfd(kvm, gsi, trigger_fd);
+		return;
+	}
+
+	list_for_each_entry(line, &irqfd_lines, list) {
+		if (line->gsi != gsi)
+			continue;
+
+		list_del(&line->list);
+		free(line);
+		break;
+	}
 }

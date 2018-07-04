@@ -1,5 +1,4 @@
 #include "kvm/guest_compat.h"
-
 #include "kvm/mutex.h"
 
 #include <linux/kernel.h>

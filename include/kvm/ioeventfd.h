@@ -11,11 +11,12 @@ struct kvm;
 struct ioevent {
 	u64			io_addr;
 	u8			io_len;
-	void			(*fn)(struct kvm *kvm, void *ptr);
-	struct kvm		*fn_kvm;
-	void			*fn_ptr;
+	void		(*fn)(struct kvm *kvm, void *ptr);
+	struct kvm	*fn_kvm;
+	void		*fn_ptr;
 	int			fd;
 	u64			datamatch;
+	u32			flags;
 
 	struct list_head	list;
 };

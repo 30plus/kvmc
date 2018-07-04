@@ -23,20 +23,17 @@ struct kvm_cpu {
 	u8		paused;
 	u8		needs_nmi;
 
-	struct kvm_coalesced_mmio_ring	*ring;
-
-	void		(*generate_fdt_nodes)(void *fdt, struct kvm* kvm,
-					      u32 gic_phandle);
+	struct	kvm_coalesced_mmio_ring	*ring;
+	void	(*generate_fdt_nodes)(void *fdt, struct kvm* kvm);
 };
 
 struct kvm_arm_target {
 	u32		id;
-	const char 	*compatible;
+	const	char *compatible;
 	int		(*init)(struct kvm_cpu *vcpu);
 };
 
 void kvm_cpu__set_kvm_arm_generic_target(struct kvm_arm_target *target);
-
 int kvm_cpu__register_kvm_arm_target(struct kvm_arm_target *target);
 
 static inline bool kvm_cpu__emulate_io(struct kvm_cpu *vcpu, u16 port, void *data,

@@ -40,8 +40,6 @@
 
 #define HUGETLBFS_PATH "/var/lib/hugetlbfs/global/pagesize-16MB/"
 
-#define PHANDLE_XICP		0x00001111
-
 static char kern_cmdline[2048];
 
 struct kvm_ext kvm_req_ext[] = {
@@ -81,7 +79,7 @@ void kvm__init_ram(struct kvm *kvm)
 		    "overlaps MMIO!\n",
 		    phys_size);
 
-	kvm__register_mem(kvm, phys_start, phys_size, host_mem);
+	kvm__register_ram(kvm, phys_start, phys_size, host_mem);
 }
 
 void kvm__arch_set_cmdline(char *cmdline, bool video)

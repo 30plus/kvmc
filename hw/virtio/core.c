@@ -75,8 +75,7 @@ static inline bool virt_desc__test_flag(struct virt_queue *vq,
 
 /*
  * Each buffer in the virtqueues is actually a chain of descriptors.  This
- * function returns the next descriptor in the chain, or vq->vring.num if we're
- * at the end.
+ * function returns the next descriptor in the chain, or max if we're at the end.
  */
 static unsigned next_desc(struct virt_queue *vq, struct vring_desc *desc,
 			  unsigned int i, unsigned int max)
@@ -87,12 +86,10 @@ static unsigned next_desc(struct virt_queue *vq, struct vring_desc *desc,
 	if (!virt_desc__test_flag(vq, &desc[i], VRING_DESC_F_NEXT))
 		return max;
 
-	/* Check they're not leading us off end of descriptors. */
 	next = virtio_guest_to_host_u16(vq, desc[i].next);
-	/* Make sure compiler knows to grab that: we don't want it changing! */
-	wmb();
 
-	return next;
+	/* Ensure they're not leading us off end of descriptors. */
+	return min(next, max);
 }
 
 u16 virt_queue__get_head_iov(struct virt_queue *vq, struct iovec iov[], u16 *out, u16 *in, u16 head, struct kvm *kvm)
@@ -186,6 +183,12 @@ bool virtio_queue__should_signal(struct virt_queue *vq)
 {
 	u16 old_idx, new_idx, event_idx;
 
+	if (!vq->use_event_idx) {
+		/* When VIRTIO_RING_F_EVENT_IDX isn't negotiated, interrupt the
+		 * guest if it didn't explicitly request to be left alone. */
+		return !(virtio_guest_to_host_u16(vq, vq->vring.avail->flags) & VRING_AVAIL_F_NO_INTERRUPT);
+	}
+
 	old_idx		= vq->last_used_signalled;
 	new_idx		= virtio_guest_to_host_u16(vq, vq->vring.used->idx);
 	event_idx	= virtio_guest_to_host_u16(vq, vring_used_event(&vq->vring));
@@ -196,6 +199,13 @@ bool virtio_queue__should_signal(struct virt_queue *vq)
 	}
 
 	return false;
+}
+
+void virtio_set_guest_features(struct kvm *kvm, struct virtio_device *vdev, void *dev, u32 features)
+{
+	/* TODO: fail negotiation if features & ~host_features */
+	vdev->features = features;
+	vdev->ops->set_guest_features(kvm, dev, features);
 }
 
 int virtio_init(struct kvm *kvm, void *dev, struct virtio_device *vdev,

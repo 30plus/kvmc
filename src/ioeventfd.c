@@ -139,7 +139,9 @@ int ioeventfd__add_event(struct ioevent *ioevent, int flags)
 		.flags		= KVM_IOEVENTFD_FLAG_DATAMATCH,
 	};
 
-	if (flags & IOEVENTFD_FLAG_PIO)
+	/* For architectures that don't recognize PIO accesses, always register
+	 * on the MMIO bus. Otherwise PIO accesses will cause returns to userspace. */
+	if (KVM_IOEVENTFD_HAS_PIO && (flags & IOEVENTFD_FLAG_PIO))
 		kvm_ioevent.flags |= KVM_IOEVENTFD_FLAG_PIO;
 
 	r = ioctl(ioevent->fn_kvm->vm_fd, KVM_IOEVENTFD, &kvm_ioevent);
@@ -148,22 +150,21 @@ int ioeventfd__add_event(struct ioevent *ioevent, int flags)
 		goto cleanup;
 	}
 
-	if (!(flags & IOEVENTFD_FLAG_USER_POLL))
-		return 0;
+	if (flags & IOEVENTFD_FLAG_USER_POLL) {
+		epoll_event = (struct epoll_event) {
+			.events = EPOLLIN,
+			.data.ptr = new_ioevent,
+		};
 
-	epoll_event = (struct epoll_event) {
-		.events		= EPOLLIN,
-		.data.ptr	= new_ioevent,
-	};
-
-	r = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, event, &epoll_event);
-	if (r) {
-		r = -errno;
-		goto cleanup;
+		r = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, event, &epoll_event);
+		if (r) {
+			r = -errno;
+			goto cleanup;
+		}
 	}
 
+	ioevent->flags = kvm_ioevent.flags;
 	list_add_tail(&new_ioevent->list, &used_ioevents);
-
 	return 0;
 
 cleanup:
@@ -194,7 +195,7 @@ int ioeventfd__del_event(u64 addr, u64 datamatch)
 		.addr		= ioevent->io_addr,
 		.len		= ioevent->io_len,
 		.datamatch	= ioevent->datamatch,
-		.flags		= KVM_IOEVENTFD_FLAG_PIO | KVM_IOEVENTFD_FLAG_DEASSIGN | KVM_IOEVENTFD_FLAG_DATAMATCH,
+		.flags		= ioevent->flags | KVM_IOEVENTFD_FLAG_DEASSIGN,
 	};
 
 	ioctl(ioevent->fn_kvm->vm_fd, KVM_IOEVENTFD, &kvm_ioevent);

@@ -25,8 +25,7 @@ static int virtio_pci__init_ioeventfd(struct kvm *kvm, struct virtio_device *vde
 {
 	struct ioevent ioevent;
 	struct virtio_pci *vpci = vdev->virtio;
-	int i, r, flags = 0;
-	int fds[2];
+	int fd, r, flags = 0;
 
 	vpci->ioeventfds[vq] = (struct virtio_pci_ioevent_param) {
 		.vdev		= vdev,
@@ -50,7 +49,7 @@ static int virtio_pci__init_ioeventfd(struct kvm *kvm, struct virtio_device *vde
 	/* ioport */
 	ioevent.io_addr	= vpci->port_addr + VIRTIO_PCI_QUEUE_NOTIFY;
 	ioevent.io_len	= sizeof(u16);
-	ioevent.fd	= fds[0] = eventfd(0, 0);
+	ioevent.fd	= fd = eventfd(0, 0);
 	r = ioeventfd__add_event(&ioevent, flags | IOEVENTFD_FLAG_PIO);
 	if (r)
 		return r;
@@ -58,15 +57,13 @@ static int virtio_pci__init_ioeventfd(struct kvm *kvm, struct virtio_device *vde
 	/* mmio */
 	ioevent.io_addr	= vpci->mmio_addr + VIRTIO_PCI_QUEUE_NOTIFY;
 	ioevent.io_len	= sizeof(u16);
-	ioevent.fd	= fds[1] = eventfd(0, 0);
+	ioevent.fd	= eventfd(0, 0);
 	r = ioeventfd__add_event(&ioevent, flags);
 	if (r)
 		goto free_ioport_evt;
 
 	if (vdev->ops->notify_vq_eventfd)
-		for (i = 0; i < 2; ++i)
-			vdev->ops->notify_vq_eventfd(kvm, vpci->dev, vq,
-						     fds[i]);
+		vdev->ops->notify_vq_eventfd(kvm, vpci->dev, vq, fd);
 	return 0;
 
 free_ioport_evt:
@@ -152,11 +149,34 @@ static bool virtio_pci__io_in(struct ioport *ioport, struct kvm_cpu *vcpu, u16 p
 	return ret;
 }
 
+static void update_msix_map(struct virtio_pci *vpci, struct msix_table *msix_entry, u32 vecnum)
+{
+	u32 gsi, i;
+
+	/* Find the GSI number used for that vector */
+	if (vecnum == vpci->config_vector) {
+		gsi = vpci->config_gsi;
+	} else {
+		for (i = 0; i < VIRTIO_PCI_MAX_VQ; i++)
+			if (vpci->vq_vector[i] == vecnum)
+				break;
+		if (i == VIRTIO_PCI_MAX_VQ)
+			return;
+		gsi = vpci->gsis[i];
+	}
+	if (gsi == 0)
+		return;
+
+	msix_entry = &msix_entry[vecnum];
+	irq__update_msix_route(vpci->kvm, gsi, &msix_entry->msg);
+}
+
 static bool virtio_pci__specific_io_out(struct kvm *kvm, struct virtio_device *vdev, u16 port,
 					void *data, int size, int offset)
 {
 	struct virtio_pci *vpci = vdev->virtio;
-	u32 config_offset, gsi, vec;
+	u32 config_offset, vec;
+	int gsi;
 	int type = virtio__get_dev_specific_field(offset - 20, virtio_pci__msix_enabled(vpci),
 							&config_offset);
 	if (type == VIRTIO_PCI_O_MSIX) {
@@ -166,21 +186,38 @@ static bool virtio_pci__specific_io_out(struct kvm *kvm, struct virtio_device *v
 			if (vec == VIRTIO_MSI_NO_VECTOR)
 				break;
 
-			gsi = irq__add_msix_route(kvm, &vpci->msix_table[vec].msg);
+			gsi = irq__add_msix_route(kvm, &vpci->msix_table[vec].msg,
+									  vpci->dev_hdr.dev_num << 3);
+			/* We don't need IRQ routing if we can use MSI injection via the KVM_SIGNAL_MSI ioctl */
+			if ((gsi == -ENXIO) && (vpci->features & VIRTIO_PCI_F_SIGNAL_MSI))
+				break;
+			if (gsi < 0) {
+				die("failed to configure MSIs");
+				break;
+			}
 
 			vpci->config_gsi = gsi;
 			break;
 		case VIRTIO_MSI_QUEUE_VECTOR:
-			vec = vpci->vq_vector[vpci->queue_selector] = ioport__read16(data);
+			vec = ioport__read16(data);
+			vpci->vq_vector[vpci->queue_selector] = vec;
 
 			if (vec == VIRTIO_MSI_NO_VECTOR)
 				break;
 
-			gsi = irq__add_msix_route(kvm, &vpci->msix_table[vec].msg);
+			gsi = irq__add_msix_route(kvm, &vpci->msix_table[vec].msg,
+									  vpci->dev_hdr.dev_num << 3);
+			/* We don't need IRQ routing if we can use MSI injection via the KVM_SIGNAL_MSI ioctl */
+			if ((gsi == -ENXIO) && (vpci->features & VIRTIO_PCI_F_SIGNAL_MSI))
+				break;
+			if (gsi < 0) {
+				die("failed to configure MSIs");
+				break;
+			}
+
 			vpci->gsis[vpci->queue_selector] = gsi;
 			if (vdev->ops->notify_vq_gsi)
-				vdev->ops->notify_vq_gsi(kvm, vpci->dev,
-							vpci->queue_selector, gsi);
+				vdev->ops->notify_vq_gsi(kvm, vpci->dev, vpci->queue_selector, gsi);
 			break;
 		};
 
@@ -211,7 +248,7 @@ static bool virtio_pci__io_out(struct ioport *ioport, struct kvm_cpu *vcpu, u16 
 	switch (offset) {
 	case VIRTIO_PCI_GUEST_FEATURES:
 		val = ioport__read32(data);
-		vdev->ops->set_guest_features(kvm, vpci->dev, val);
+		virtio_set_guest_features(kvm, vdev, vpci->dev, val);
 		break;
 	case VIRTIO_PCI_QUEUE_PFN:
 		val = ioport__read32(data);
@@ -247,26 +284,35 @@ static struct ioport_operations virtio_pci__io_ops = {
 	.io_out	= virtio_pci__io_out,
 };
 
-static void virtio_pci__msix_mmio_callback(struct kvm_cpu *vcpu,
-					   u64 addr, u8 *data, u32 len,
-					   u8 is_write, void *ptr)
+static void virtio_pci__msix_mmio_callback(struct kvm_cpu *vcpu, u64 addr,
+						u8 *data, u32 len, u8 is_write, void *ptr)
 {
 	struct virtio_pci *vpci = ptr;
-	void *table;
-	u32 offset;
+	struct msix_table *table;
+	int vecnum;
+	size_t offset;
 
 	if (addr > vpci->msix_io_block + PCI_IO_SIZE) {
-		table	= &vpci->msix_pba;
-		offset	= vpci->msix_io_block + PCI_IO_SIZE;
+		if (is_write)
+			return;
+		table = (struct msix_table *)&vpci->msix_pba;
+		offset = addr - (vpci->msix_io_block + PCI_IO_SIZE);
 	} else {
-		table	= &vpci->msix_table;
-		offset	= vpci->msix_io_block;
+		table	= vpci->msix_table;
+		offset	= addr - vpci->msix_io_block;
 	}
+	vecnum = offset / sizeof(struct msix_table);
+	offset = offset % sizeof(struct msix_table);
 
-	if (is_write)
-		memcpy(table + addr - offset, data, len);
-	else
-		memcpy(data, table + addr - offset, len);
+	if (!is_write) {
+		memcpy(data, (void *)&table[vecnum] + offset, len);
+		return;
+	}
+	memcpy((void *)&table[vecnum] + offset, data, len);
+
+	/* Did we just update the address or payload? */
+	if (offset < offsetof(struct msix_table, ctrl))
+		update_msix_map(vpci, table, vecnum);
 }
 
 static void virtio_pci__signal_msi(struct kvm *kvm, struct virtio_pci *vpci, int vec)
@@ -277,7 +323,12 @@ static void virtio_pci__signal_msi(struct kvm *kvm, struct virtio_pci *vpci, int
 		.data = vpci->msix_table[vec].msg.data,
 	};
 
-	ioctl(kvm->vm_fd, KVM_SIGNAL_MSI, &msi);
+	if (kvm->msix_needs_devid) {
+		msi.flags = KVM_MSI_VALID_DEVID;
+		msi.devid = vpci->dev_hdr.dev_num << 3;
+	}
+
+	irq__signal_msi(kvm, &msi);
 }
 
 int virtio_pci__signal_vq(struct kvm *kvm, struct virtio_device *vdev, u32 vq)
@@ -377,10 +428,8 @@ int virtio_pci__init(struct kvm *kvm, void *dev, struct virtio_device *vdev,
 		.class[2]		= (class >> 16) & 0xff,
 		.subsys_vendor_id	= cpu_to_le16(PCI_SUBSYSTEM_VENDOR_ID_REDHAT_QUMRANET),
 		.subsys_id		= cpu_to_le16(subsys_id),
-		.bar[0]			= cpu_to_le32(vpci->mmio_addr
-							| PCI_BASE_ADDRESS_SPACE_MEMORY),
-		.bar[1]			= cpu_to_le32(vpci->port_addr
-							| PCI_BASE_ADDRESS_SPACE_IO),
+		.bar[0]			= cpu_to_le32(vpci->port_addr | PCI_BASE_ADDRESS_SPACE_MEMORY),
+		.bar[1]			= cpu_to_le32(vpci->mmio_addr | PCI_BASE_ADDRESS_SPACE_IO),
 		.bar[2]			= cpu_to_le32(vpci->msix_io_block
 							| PCI_BASE_ADDRESS_SPACE_MEMORY),
 		.status			= cpu_to_le16(PCI_STATUS_CAP_LIST),
@@ -402,11 +451,8 @@ int virtio_pci__init(struct kvm *kvm, void *dev, struct virtio_device *vdev,
 	 * VIRTIO_PCI_MAX_CONFIG entries for config.
 	 *
 	 * To quote the PCI spec:
-	 *
-	 * System software reads this field to determine the
-	 * MSI-X Table Size N, which is encoded as N-1.
-	 * For example, a returned value of "00000000011"
-	 * indicates a table size of 4.
+	 * System software reads this field to determine the MSI-X Table Size N, which is encoded as N-1.
+	 * For example, a returned value of "00000000011" indicates a table size of 4.
 	 */
 	vpci->pci_hdr.msix.ctrl = cpu_to_le16(VIRTIO_PCI_MAX_VQ + VIRTIO_PCI_MAX_CONFIG - 1);
 
@@ -415,7 +461,7 @@ int virtio_pci__init(struct kvm *kvm, void *dev, struct virtio_device *vdev,
 	vpci->pci_hdr.msix.pba_offset = cpu_to_le32(2 | PCI_IO_SIZE);
 	vpci->config_vector = 0;
 
-	if (kvm__supports_extension(kvm, KVM_CAP_SIGNAL_MSI))
+	if (irq__can_signal_msi(kvm))
 		vpci->features |= VIRTIO_PCI_F_SIGNAL_MSI;
 
 	r = device__register(&vpci->dev_hdr);

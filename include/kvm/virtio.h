@@ -9,6 +9,7 @@
 #include <linux/types.h>
 #include <sys/uio.h>
 
+#include "kvm/barrier.h"
 #include "kvm/kvm.h"
 
 #define VIRTIO_IRQ_LOW		0
@@ -17,9 +18,14 @@
 #define VIRTIO_PCI_O_CONFIG	0
 #define VIRTIO_PCI_O_MSIX	1
 
-#define VIRTIO_ENDIAN_HOST	0
 #define VIRTIO_ENDIAN_LE	(1 << 0)
 #define VIRTIO_ENDIAN_BE	(1 << 1)
+
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define VIRTIO_ENDIAN_HOST VIRTIO_ENDIAN_LE
+#else
+#define VIRTIO_ENDIAN_HOST VIRTIO_ENDIAN_BE
+#endif
 
 struct virt_queue {
 	struct vring	vring;
@@ -29,6 +35,7 @@ struct virt_queue {
 	u16		last_avail_idx;
 	u16		last_used_signalled;
 	u16		endian;
+	bool	use_event_idx;
 };
 
 /*
@@ -40,7 +47,7 @@ struct virt_queue {
 #define VIRTIO_RING_ENDIAN VIRTIO_ENDIAN_HOST
 #endif
 
-#if (VIRTIO_RING_ENDIAN & (VIRTIO_ENDIAN_LE | VIRTIO_ENDIAN_BE))
+#if VIRTIO_RING_ENDIAN != VIRTIO_ENDIAN_HOST
 
 static inline __u16 __virtio_g2h_u16(u16 endian, __u16 val)
 {
@@ -94,6 +101,10 @@ static inline u16 virt_queue__pop(struct virt_queue *queue)
 {
 	__u16 guest_idx;
 
+	/* The guest updates the avail index after writing the ring entry. Ensure that
+	 * we read the updated entry once virt_queue__available() observes the new index. */
+	rmb();
+
 	guest_idx = queue->vring.avail->ring[queue->last_avail_idx++ % queue->vring.num];
 	return virtio_guest_to_host_u16(queue, guest_idx);
 }
@@ -105,11 +116,14 @@ static inline struct vring_desc *virt_queue__get_desc(struct virt_queue *queue, 
 
 static inline bool virt_queue__available(struct virt_queue *vq)
 {
+	u16 last_avail_idx = virtio_host_to_guest_u16(vq, vq->last_avail_idx);
 	if (!vq->vring.avail)
 		return 0;
 
-	vring_avail_event(&vq->vring) = virtio_host_to_guest_u16(vq, vq->last_avail_idx);
-	return virtio_guest_to_host_u16(vq, vq->vring.avail->idx) != vq->last_avail_idx;
+	if (vq->use_event_idx)
+		vring_avail_event(&vq->vring) = last_avail_idx;
+
+	return vq->vring.avail->idx != last_avail_idx;
 }
 
 void virt_queue__used_idx_advance(struct virt_queue *queue, u16 jump);
@@ -132,10 +146,11 @@ enum virtio_trans {
 };
 
 struct virtio_device {
-	bool			use_vhost;
-	void			*virtio;
+	bool		use_vhost;
+	void		*virtio;
 	struct virtio_ops	*ops;
 	u16			endian;
+	u32			features;
 };
 
 struct virtio_ops {
@@ -169,10 +184,11 @@ static inline void *virtio_get_vq(struct kvm *kvm, u32 pfn, u32 page_size)
 	return guest_flat_to_host(kvm, (u64)pfn * page_size);
 }
 
-static inline void virtio_init_device_vq(struct virtio_device *vdev,
-					 struct virt_queue *vq)
+static inline void virtio_init_device_vq(struct virtio_device *vdev, struct virt_queue *vq)
 {
 	vq->endian = vdev->endian;
+	vq->use_event_idx = (vdev->features & VIRTIO_RING_F_EVENT_IDX);
 }
 
+void virtio_set_guest_features(struct kvm *kvm, struct virtio_device *vdev, void *dev, u32 features);
 #endif /* KVM__VIRTIO_H */

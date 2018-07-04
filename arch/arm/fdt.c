@@ -40,7 +40,7 @@ static void dump_fdt(const char *dtb_file, void *fdt)
 	close(fd);
 }
 
-#define CPU_NAME_MAX_LEN 8
+#define CPU_NAME_MAX_LEN 15
 static void generate_cpu_nodes(void *fdt, struct kvm *kvm)
 {
 	int cpu;
@@ -114,18 +114,16 @@ static int setup_fdt(struct kvm *kvm)
 {
 	struct device_header *dev_hdr;
 	u8 staging_fdt[FDT_MAX_SIZE];
-	u32 gic_phandle		= fdt__alloc_phandle();
 	u64 mem_reg_prop[]	= {
 		cpu_to_fdt64(kvm->arch.memory_guest_start),
 		cpu_to_fdt64(kvm->ram_size),
 	};
 	struct psci_fns *fns;
 	void *fdt		= staging_fdt;
-	void *fdt_dest		= guest_flat_to_host(kvm,
-						     kvm->arch.dtb_guest_start);
+	void *fdt_dest	= guest_flat_to_host(kvm, kvm->arch.dtb_guest_start);
 	void (*generate_mmio_fdt_nodes)(void *, struct device_header *,
 					void (*)(void *, u8, enum irq_type));
-	void (*generate_cpu_peripheral_fdt_nodes)(void *, struct kvm *, u32)
+	void (*generate_cpu_peripheral_fdt_nodes)(void *, struct kvm *)
 					= kvm->cpus[0]->generate_fdt_nodes;
 
 	/* Create new tree without a reserve map */
@@ -134,7 +132,7 @@ static int setup_fdt(struct kvm *kvm)
 
 	/* Header */
 	_FDT(fdt_begin_node(fdt, ""));
-	_FDT(fdt_property_cell(fdt, "interrupt-parent", gic_phandle));
+	_FDT(fdt_property_cell(fdt, "interrupt-parent", PHANDLE_GIC));
 	_FDT(fdt_property_string(fdt, "compatible", "linux,dummy-virt"));
 	_FDT(fdt_property_cell(fdt, "#address-cells", 0x2));
 	_FDT(fdt_property_cell(fdt, "#size-cells", 0x2));
@@ -143,6 +141,7 @@ static int setup_fdt(struct kvm *kvm)
 	_FDT(fdt_begin_node(fdt, "chosen"));
 	_FDT(fdt_property_cell(fdt, "linux,pci-probe-only", 1));
 	_FDT(fdt_property_string(fdt, "bootargs", kvm->cfg.real_cmdline));
+	_FDT(fdt_property_u64(fdt, "kaslr-seed", kvm->cfg.arch.kaslr_seed));
 
 	/* Initrd */
 	if (kvm->arch.initrd_size != 0) {
@@ -166,7 +165,7 @@ static int setup_fdt(struct kvm *kvm)
 	/* CPU and peripherals (interrupt controller, timers, etc) */
 	generate_cpu_nodes(fdt, kvm);
 	if (generate_cpu_peripheral_fdt_nodes)
-		generate_cpu_peripheral_fdt_nodes(fdt, kvm, gic_phandle);
+		generate_cpu_peripheral_fdt_nodes(fdt, kvm);
 
 	/* Virtio MMIO devices */
 	dev_hdr = device__first_dev(DEVICE_BUS_MMIO);
@@ -185,7 +184,7 @@ static int setup_fdt(struct kvm *kvm)
 	}
 
 	/* PCI host controller */
-	pci__generate_fdt_nodes(fdt, gic_phandle);
+	pci__generate_fdt_nodes(fdt);
 
 	/* PSCI firmware */
 	_FDT(fdt_begin_node(fdt, "psci"));

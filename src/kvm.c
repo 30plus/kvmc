@@ -68,6 +68,32 @@ const char *kvm__get_dir(void)
 	return KVMC_ROOT;
 }
 
+bool kvm__supports_vm_extension(struct kvm *kvm, unsigned int extension)
+{
+	static int supports_vm_ext_check = 0;
+	int ret;
+
+	switch (supports_vm_ext_check) {
+	case 0:
+		ret = ioctl(kvm->sys_fd, KVM_CHECK_EXTENSION, KVM_CAP_CHECK_EXTENSION_VM);
+		if (ret <= 0) {
+			supports_vm_ext_check = -1;
+			return false;
+		}
+		supports_vm_ext_check = 1;
+		/* fall through */
+	case 1:
+		break;
+	case -1:
+		return false;
+	}
+
+	ret = ioctl(kvm->vm_fd, KVM_CHECK_EXTENSION, extension);
+	if (ret < 0)
+		return false;
+	return ret;
+}
+
 bool kvm__supports_extension(struct kvm *kvm, unsigned int extension)
 {
 	int ret;
@@ -124,35 +150,71 @@ int kvm__exit(struct kvm *kvm)
 }
 core_exit(kvm__exit);
 
-/*
- * Note: KVM_SET_USER_MEMORY_REGION assumes that we don't pass overlapping memory regions to it. Therefore,
- * be careful if you use this function for registering memory regions for emulating hardware.
- */
-int kvm__register_mem(struct kvm *kvm, u64 guest_phys, u64 size, void *userspace_addr)
+int kvm__register_mem(struct kvm *kvm, u64 guest_phys, u64 size, void *userspace_addr, enum kvm_mem_type type)
 {
 	struct kvm_userspace_memory_region mem;
+	struct kvm_mem_bank *merged = NULL;
 	struct kvm_mem_bank *bank;
 	int ret;
+
+	/* Check for overlap */
+	list_for_each_entry(bank, &kvm->mem_banks, list) {
+		u64 bank_end = bank->guest_phys_addr + bank->size - 1;
+		u64 end = guest_phys + size - 1;
+		if (guest_phys > bank_end || end < bank->guest_phys_addr)
+			continue;
+
+		/* Merge overlapping reserved regions */
+		if (bank->type == KVM_MEM_TYPE_RESERVED && type == KVM_MEM_TYPE_RESERVED) {
+			bank->guest_phys_addr = min(bank->guest_phys_addr, guest_phys);
+			bank->size = max(bank_end, end) - bank->guest_phys_addr + 1;
+
+			if (merged) {
+				/* This is at least the second merge, remove previous result. */
+				list_del(&merged->list);
+				free(merged);
+			}
+
+			guest_phys = bank->guest_phys_addr;
+			size = bank->size;
+			merged = bank;
+
+			/* Keep checking that we don't overlap another region */
+			continue;
+		}
+
+		pr_err("%s region [%llx-%llx] would overlap %s region [%llx-%llx]",
+			   kvm_mem_type_to_string(type), guest_phys, guest_phys + size - 1,
+			   kvm_mem_type_to_string(bank->type), bank->guest_phys_addr,
+			   bank->guest_phys_addr + bank->size - 1);
+
+		return -EINVAL;
+	}
+	if (merged)
+		return 0;
 
 	bank = malloc(sizeof(*bank));
 	if (!bank)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&bank->list);
-	bank->guest_phys_addr		= guest_phys;
-	bank->host_addr			= userspace_addr;
-	bank->size			= size;
+	bank->guest_phys_addr = guest_phys;
+	bank->host_addr	= userspace_addr;
+	bank->size		= size;
+	bank->type		= type;
 
-	mem = (struct kvm_userspace_memory_region) {
-		.slot			= kvm->mem_slots++,
-		.guest_phys_addr	= guest_phys,
-		.memory_size		= size,
-		.userspace_addr		= (unsigned long)userspace_addr,
-	};
+	if (type != KVM_MEM_TYPE_RESERVED) {
+		mem = (struct kvm_userspace_memory_region) {
+			.slot				= kvm->mem_slots++,
+			.guest_phys_addr	= guest_phys,
+			.memory_size		= size,
+			.userspace_addr		= (unsigned long)userspace_addr,
+		};
 
-	ret = ioctl(kvm->vm_fd, KVM_SET_USER_MEMORY_REGION, &mem);
-	if (ret < 0)
-		return -errno;
+		ret = ioctl(kvm->vm_fd, KVM_SET_USER_MEMORY_REGION, &mem);
+		if (ret < 0)
+			return -errno;
+	}
 
 	list_add(&bank->list, &kvm->mem_banks);
 	return 0;
@@ -188,6 +250,26 @@ u64 host_to_guest_flat(struct kvm *kvm, void *ptr)
 
 	pr_warning("unable to translate host address %p to guest", ptr);
 	return 0;
+}
+
+/* Iterate over each registered memory bank. Call @fun for each bank with @data as argument.
+ * @type is a bitmask that allows to filter banks according to their type.
+ * If one call to @fun returns a non-zero value, stop iterating and return the
+ * value. Otherwise, return zero. */
+int kvm__for_each_mem_bank(struct kvm *kvm, enum kvm_mem_type type,
+						   int (*fun)(struct kvm *kvm, struct kvm_mem_bank *bank, void *data), void *data)
+{
+	int ret;
+	struct kvm_mem_bank *bank;
+
+	list_for_each_entry(bank, &kvm->mem_banks, list) {
+		if (type != KVM_MEM_TYPE_ALL && !(bank->type & type))
+			continue;
+		ret = fun(kvm, bank, data);
+		if (ret)
+			break;
+	}
+	return ret;
 }
 
 int kvm__recommended_cpus(struct kvm *kvm)
@@ -376,7 +458,7 @@ void kvm__pause(struct kvm *kvm)
 	mutex_lock(&pause_lock);
 
 	/* Check if the guest is running */
-	if (!kvm->cpus[0] || kvm->cpus[0]->thread == 0)
+	if (!kvm->cpus || !kvm->cpus[0] || kvm->cpus[0]->thread == 0)
 		return;
 
 	pause_event = eventfd(0, 0);

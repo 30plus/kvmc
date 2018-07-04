@@ -34,7 +34,7 @@ void kvm__init_ram(struct kvm *kvm)
 	phys_size	= kvm->ram_size;
 	host_mem	= kvm->ram_start;
 
-	err = kvm__register_mem(kvm, phys_start, phys_size, host_mem);
+	err = kvm__register_ram(kvm, phys_start, phys_size, host_mem);
 	if (err)
 		die("Failed to register %lld bytes of memory at physical "
 		    "address 0x%llx [err %d]", phys_size, phys_start, err);
@@ -49,10 +49,8 @@ void kvm__arch_delete_ram(struct kvm *kvm)
 
 void kvm__arch_read_term(struct kvm *kvm)
 {
-	if (term_readable(0)) {
-		serial8250__update_consoles(kvm);
-		virtio_console__inject_interrupt(kvm);
-	}
+	serial8250__update_consoles(kvm);
+	virtio_console__inject_interrupt(kvm);
 }
 
 void kvm__arch_set_cmdline(char *cmdline, bool video)

@@ -1,9 +1,18 @@
+Archs to support: AMD64, Aarch64, MIPS64, PPC64
+
+[AMD64]
+	Tester: Dell XPS9550, ASRock Taichi X299
+
 [Aarch64]
 	http://www.96boards.org
+	Tester: Khadas VIM2, NVIDIA TX2
 
 [MIPS]
 	http://www.loongson.cn/product/system/
+	Tester: None(Doc is limited, may be dropped)
 
 [PPC64]
 	[Crowd funding failed] https://www.raptorengineering.com/TALOS/prerelease.php
+	[Prerelease] https://www.raptorcs.com/TALOSII/prerelease.php
 	[Delayed]https://www.powerpc-notebook.org/en/
+	Tester: None(Board not affordable, under consideration)

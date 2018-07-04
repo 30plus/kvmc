@@ -98,7 +98,7 @@ void kvm__init_ram(struct kvm *kvm)
 		phys_size  = kvm->ram_size;
 		host_mem   = kvm->ram_start;
 
-		kvm__register_mem(kvm, phys_start, phys_size, host_mem);
+		kvm__register_ram(kvm, phys_start, phys_size, host_mem);
 	} else {
 		/* First RAM range from zero to the PCI gap: */
 
@@ -106,7 +106,7 @@ void kvm__init_ram(struct kvm *kvm)
 		phys_size  = KVM_32BIT_GAP_START;
 		host_mem   = kvm->ram_start;
 
-		kvm__register_mem(kvm, phys_start, phys_size, host_mem);
+		kvm__register_ram(kvm, phys_start, phys_size, host_mem);
 
 		/* Second RAM range from 4GB to the end of RAM: */
 
@@ -114,7 +114,7 @@ void kvm__init_ram(struct kvm *kvm)
 		phys_size  = kvm->ram_size - phys_start;
 		host_mem   = kvm->ram_start + phys_start;
 
-		kvm__register_mem(kvm, phys_start, phys_size, host_mem);
+		kvm__register_ram(kvm, phys_start, phys_size, host_mem);
 	}
 }
 
@@ -123,9 +123,9 @@ void kvm__arch_set_cmdline(char *cmdline, bool video)
 {
 	strcpy(cmdline, "noapic noacpi pci=conf1 reboot=k panic=1 i8042.direct=1 i8042.dumbkbd=1 i8042.nopnp=1");
 	if (video)
-		strcat(cmdline, " video=vesafb console=tty0");
+		strcat(cmdline, " video=vesafb");
 	else
-		strcat(cmdline, " console=ttyS0 earlyprintk=serial i8042.noaux=1");
+		strcat(cmdline, " earlyprintk=serial i8042.noaux=1");
 }
 
 /* Architecture-specific KVM init */

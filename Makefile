@@ -11,7 +11,7 @@ ARCH	?= $(shell uname -m | sed -e s/ppc.*/powerpc/ -e s/aarch64.*/arm64/ -e s/mi
 CFLAGS	:= -fPIC
 LDFLAGS	:= -lbfd
 
-KVMC_SRC = $(wildcard src/*.c) $(wildcard src/cmds/*.c) $(wildcard hw/virtio/*.c) $(wildcard src/net/*.c) $(wildcard util/*.c) $(wildcard hw/*.c) $(wildcard hw/disk/*.c)
+KVMC_SRC = $(wildcard src/*.c) $(wildcard src/cmds/*.c) $(wildcard hw/virtio/*.c) $(wildcard src/net/*.c) $(wildcard util/*.c) $(wildcard hw/*.c) $(wildcard hw/disk/*.c) $(wildcard hw/vfio/*.c)
 OBJS	+= util/guest/compat.o ${KVMC_SRC:.c=.o}
 
 ifeq ($(ARCH),x86_64)
@@ -34,8 +34,8 @@ endif
 
 ifeq ($(ARCH), arm64)
 	DEFINES		+= -DCONFIG_ARM64
-	SRCS_ARM	:= $(wildcard arch/arm/*.c)
-	OBJS		+= $(SRCS_ARM:.c=.o) arch/arm/aarch64/arm-cpu.o arch/arm/aarch64/kvm-cpu.o
+	SRCS_ARM	:= $(wildcard arch/arm/*.c) $(wildcard arch/arm/aarch64/*.c)
+	OBJS		+= $(SRCS_ARM:.c=.o)
 	ARCH_INCLUDE	:= arch/arm/include -Iarch/arm/aarch64/include
 	ARCH_WANT_LIBFDT := y
 endif
@@ -43,7 +43,8 @@ endif
 ifeq ($(ARCH),mips)
 	DEFINES		+= -DCONFIG_MIPS
 	ARCH_INCLUDE	:= arch/mips/include
-	OBJS		+= arch/mips/kvm.o arch/mips/kvm-cpu.o arch/mips/irq.o
+	SRCS_MIPS	+= $(wildcard arch/mips/*.c)
+	OBJS		+= $(SRCS_MIPS:.c=.o)
 endif
 
 ifeq (,$(ARCH_INCLUDE))
@@ -118,7 +119,7 @@ CFLAGS	+= $(DEFINES) -Iinclude -I$(ARCH_INCLUDE) -fno-strict-aliasing -O2
 CFLAGS	+= -Wall -Wformat=2 -Winit-self -Wnested-externs -Wno-system-headers -Wundef -Wunused -Wold-style-definition \
 	-Wredundant-decls -Wsign-compare -Wstrict-prototypes -Wvolatile-register-var -Wwrite-strings -Wno-format-nonliteral
 
-all: util/guest/init util/guest/pre_init libkvmc.so kvmc
+all: util/guest/guest_init.c util/guest/guest_pre_init.c libkvmc.so kvmc
 
 kvmc: binding/sh.o libkvmc.so
 	$(CC) -o $@ $< -L. -lkvmc -lreadline
@@ -126,17 +127,23 @@ kvmc: binding/sh.o libkvmc.so
 libkvmc.so: $(OBJS) $(OBJS_DYNOPT) $(OTHEROBJS) ${GUEST_OBJS}
 	$(CC) -shared $(CFLAGS) $(OBJS) $(OBJS_DYNOPT) $(OTHEROBJS) $(GUEST_OBJS) $(LDFLAGS) $(LIBS_DYNOPT) -o $@ -lrt -pthread -lutil
 
+# binary-to-C
+# create a C source file describing the binary input file as an array
+# Usage: $(call binary-to-C,binary-file,C-symbol-name,C-output-file)
+binary-to-C = stat -c "unsigned long $(2)_size = %s;" $1 > $3;	\
+	echo "unsigned char $(2)[] = {" >> $3;						\
+	od -v -tx1 -An -w12 $1 | sed -e "s/ \(..\)/0x\1, /g" >> $3;	\
+	echo "};" >> $3;
+
 ifneq ($(ARCH_PRE_INIT),)
-util/guest/pre_init: $(ARCH_PRE_INIT)
-	$(CC) -s $(PIE_FLAGS) -nostdlib $(ARCH_PRE_INIT) -o $@
-	$(LD) -r -b binary -o util/guest/guest_pre_init.o $@
+util/guest/guest_pre_init.c: $(ARCH_PRE_INIT)
+	$(CC) -s $(PIE_FLAGS) -nostdlib $(ARCH_PRE_INIT) -o util/guest/pre_init
+	$(call binary-to-C,util/guest/pre_init,pre_init_binary,$@)
 endif
 
-util/guest/init: util/guest/init.c
-	$(CC) $(GUEST_INIT_FLAGS) $^ -o $@
-
-util/guest/guest_init.o: util/guest/init
-	$(LD) -r -b binary -o $@ $^
+util/guest/guest_init.c: util/guest/init.c
+	$(CC) $(GUEST_INIT_FLAGS) $^ -o util/guest/init
+	$(call binary-to-C,util/guest/init,init_binary,$@)
 
 %.s: %.c
 	$(CC) -o $@ -S $(CFLAGS) -fverbose-asm $<
@@ -178,3 +185,4 @@ check: all
 clean:
 	rm -fr arch/x86/bios/*.bin arch/x86/bios/*.elf arch/x86/bios/*.o arch/x86/bios/bios-rom.h
 	rm -f $(OBJS) $(OTHEROBJS) $(OBJS_DYNOPT) binding/sh.o kvmc libkvmc.so util/guest/init util/guest/pre_init $(GUEST_OBJS)
+	rm -f util/guest/guest_init.c util/guest/guest_pre_init.c

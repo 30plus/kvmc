@@ -38,6 +38,7 @@
 #include "kvm/irq.h"
 #include "kvm/kvm.h"
 #include "kvm/pci.h"
+#include "kvm/vfio.h"
 #include "kvm/rtc.h"
 #include "kvm/sdl.h"
 #include "kvm/vnc.h"
@@ -234,6 +235,8 @@ void kvmc_help_start(void)
 "\nNetworking options:\n"
 "   -n, --network <params>	Create a new guest NIC\n"
 "   -p, --no-dhcp		Disable kernel DHCP in rootfs mode\n"
+"\nVFIO options:\n"
+"   -V, --vfio-pci		Assgn a PCI device to VM ('[domain:]bus:dev.fn')\n"
 "\nDebug options:\n"
 "   -T, --debug			Enable debug messages\n"
 "   -P, --debug-single-step	Enable single stepping\n"
@@ -251,6 +254,7 @@ static struct kvm *kvmc_start_init(int argc, char * const* argv)
 	const char * ext_argv[argc + 1];
 	static char real_cmdline[2048], default_name[20];
 	unsigned int nr_online_cpus;
+	bool video;
 	const struct option start_options[] = {
 		{"9p",		required_argument,	0, '9'},
 		{"balloon",	no_argument,		0, 'b'},
@@ -276,6 +280,8 @@ static struct kvm *kvmc_start_init(int argc, char * const* argv)
 /* Networking options */
 		{"network",	required_argument,	0, 'n'},
 		{"nodhcp",	no_argument,		0, 'p'},
+/* VFIO options */
+		{"vfio-pci",	required_argument,	0, 'V'},
 /* Debug options */
 		{"debug-ioport",no_argument,		0, 'I'},
 		{"debug-mmio",	no_argument,		0, 'M'},
@@ -324,6 +330,7 @@ static struct kvm *kvmc_start_init(int argc, char * const* argv)
 		case 'k':	kvm->cfg.kernel_filename = optarg; break;
 		case 'n':	netdev_parser(optarg, kvm); break;//TODO
 		case 'p':	kvm->cfg.no_dhcp = true; break;
+		case 'V':	break;//TODO: vfio-pci parsing(vfio_device_parser)
 		case 'I':	kvm->cfg.ioport_debug = true; break;
 		case 'M':	kvm->cfg.mmio_debug = true; break;
 		case 'T':	do_debug_print = true; break;
@@ -365,6 +372,8 @@ static struct kvm *kvmc_start_init(int argc, char * const* argv)
 	if (!kvm->cfg.console)
 		kvm->cfg.console = DEFAULT_CONSOLE;
 
+	video = kvm->cfg.vnc || kvm->cfg.sdl || kvm->cfg.gtk;
+
 	if (!strncmp(kvm->cfg.console, "virtio", 6))
 		kvm->cfg.active_console  = CONSOLE_VIRTIO;
 	else if (!strncmp(kvm->cfg.console, "serial", 6))
@@ -393,7 +402,21 @@ static struct kvm *kvmc_start_init(int argc, char * const* argv)
                 kvm->cfg.network = DEFAULT_NETWORK;
 
 	memset(real_cmdline, 0, sizeof(real_cmdline));
-	kvm__arch_set_cmdline(real_cmdline, kvm->cfg.vnc || kvm->cfg.sdl || kvm->cfg.gtk);
+	kvm__arch_set_cmdline(real_cmdline, video);
+
+	if (video) {
+		strcat(real_cmdline, " console=tty0");
+	} else {
+		switch (kvm->cfg.active_console) {
+		case CONSOLE_HV:	/* Fall through */
+		case CONSOLE_VIRTIO:
+			strcat(real_cmdline, " console=hvc0");
+			break;
+		case CONSOLE_8250:
+			strcat(real_cmdline, " console=ttyS0");
+			break;
+		}
+	}
 
 	if (!kvm->cfg.guest_name) {
 		if (kvm->cfg.custom_rootfs) {

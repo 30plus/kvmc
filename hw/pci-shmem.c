@@ -127,7 +127,6 @@ static void callback_mmio_msix(struct kvm_cpu *vcpu, u64 addr, u8 *data, u32 len
 int pci_shmem__get_local_irqfd(struct kvm *kvm)
 {
 	int fd, gsi, r;
-	struct kvm_irqfd irqfd;
 
 	if (local_fd == 0) {
 		fd = eventfd(0, 0);
@@ -135,17 +134,15 @@ int pci_shmem__get_local_irqfd(struct kvm *kvm)
 			return fd;
 
 		if (pci_shmem_pci_device.msix.ctrl & cpu_to_le16(PCI_MSIX_FLAGS_ENABLE)) {
-			gsi = irq__add_msix_route(kvm, &msix_table[0].msg);
+			gsi = irq__add_msix_route(kvm, &msix_table[0].msg,
+									  pci_shmem_device.dev_num << 3);
+			if (gsi < 0)
+				return gsi;
 		} else {
 			gsi = pci_shmem_pci_device.irq_line;
 		}
 
-		irqfd = (struct kvm_irqfd) {
-			.fd = fd,
-			.gsi = gsi,
-		};
-
-		r = ioctl(kvm->vm_fd, KVM_IRQFD, &irqfd);
+		r = irq__add_irqfd(kvm, gsi, fd, -1);
 		if (r < 0)
 			return r;
 
@@ -390,8 +387,7 @@ int pci_shmem__init(struct kvm *kvm)
 	if (mem == NULL)
 		return -EINVAL;
 
-	kvm__register_mem(kvm, shmem_region->phys_addr, shmem_region->size,
-			  mem);
+	kvm__register_dev_mem(kvm, shmem_region->phys_addr, shmem_region->size, mem);
 	return 0;
 }
 dev_init(pci_shmem__init);

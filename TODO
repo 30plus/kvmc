@@ -1,0 +1,3 @@
+kvmtool-last-commit:
+41d773e vfio: check reserved regions before mapping DMA
+kvmtool-next-commit:

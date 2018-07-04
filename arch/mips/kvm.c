@@ -28,21 +28,21 @@ void kvm__init_ram(struct kvm *kvm)
 		phys_size  = kvm->ram_size;
 		host_mem   = kvm->ram_start;
 
-		kvm__register_mem(kvm, phys_start, phys_size, host_mem);
+		kvm__register_ram(kvm, phys_start, phys_size, host_mem);
 	} else {
 		/* one region for memory that fits below MMIO range */
 		phys_start = 0;
 		phys_size  = KVM_MMIO_START;
 		host_mem   = kvm->ram_start;
 
-		kvm__register_mem(kvm, phys_start, phys_size, host_mem);
+		kvm__register_ram(kvm, phys_start, phys_size, host_mem);
 
 		/* one region for rest of memory */
 		phys_start = KVM_MMIO_START + KVM_MMIO_SIZE;
 		phys_size  = kvm->ram_size - KVM_MMIO_START;
 		host_mem   = kvm->ram_start + KVM_MMIO_START;
 
-		kvm__register_mem(kvm, phys_start, phys_size, host_mem);
+		kvm__register_ram(kvm, phys_start, phys_size, host_mem);
 	}
 }
 
@@ -53,7 +53,6 @@ void kvm__arch_delete_ram(struct kvm *kvm)
 
 void kvm__arch_set_cmdline(char *cmdline, bool video)
 {
-
 }
 
 /* Architecture-specific KVM init */

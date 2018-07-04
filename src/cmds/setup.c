@@ -70,19 +70,41 @@ static const char *guestfs_dirs[] = {"/dev", "/etc", "/home", "/host", "/proc", 
 static const char *guestfs_symlinks[] = {"/bin", "/lib", "/lib64", "/sbin", "/usr", "/etc/ld.so.conf"};
 
 #ifdef CONFIG_GUEST_INIT
+extern unsigned char init_binary[];
+extern unsigned long init_binary_size;
+extern unsigned char pre_init_binary[];
+extern unsigned long pre_init_binary_size;
+
+static int extract_file(const char *guestfs_name, const char *filename, const void *data, size_t size)
+{
+	char path[PATH_MAX];
+	int fd, ret;
+
+	snprintf(path, PATH_MAX, "%s%s/%s", kvm__get_dir(), guestfs_name, filename);
+	fd = open(path, O_EXCL | O_CREAT | O_WRONLY, 0755);
+	if (fd < 0) {
+		if (errno == EEXIST)
+			return 0;
+		die("Failed to setup %s", path);
+	}
+
+	ret = xwrite(fd, data, size);
+	if (ret < 0)
+		die("Failed to setup %s", path);
+	close(fd);
+	return 0;
+}
+
 int kvm_setup_guest_init(const char *guestfs_name)
 {
 	int err;
-	char path[PATH_MAX];
 
 #ifdef CONFIG_GUEST_PRE_INIT
-	snprintf(path, PATH_MAX, "%s%s/%s", kvm__get_dir(), guestfs_name, "virt/pre_init");
-	err = copy_file(KVMC_GUEST_PRE_INIT, path);
+	err = extract_file(guestfs_name, "virt/pre_init", pre_init_binary, pre_init_binary_size);
 	if (err)
 		return err;
 #endif
-	snprintf(path, PATH_MAX, "%s%s/%s", kvm__get_dir(), guestfs_name, "virt/init");
-	err = copy_file(KVMC_GUEST_INIT, path);
+	err = extract_file(guestfs_name, "virt/init", init_binary, init_binary_size);
 	return err;
 }
 #else

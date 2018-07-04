@@ -3,10 +3,11 @@
 
 struct kvm_config_arch {
 	const char	*dump_dtb_filename;
-	unsigned int	force_cntfrq;
+	unsigned int force_cntfrq;
 	bool		virtio_trans_pci;
 	bool		aarch32_guest;
 	bool		has_pmuv3;
+	u64			kaslr_seed;
 	enum irqchip_type irqchip;
 };
 
@@ -25,7 +26,7 @@ int irqchip_parser(const struct option *opt, const char *arg, int unset);
 		    "Force virtio devices to use PCI as their default "		\
 		    "transport"),						\
         OPT_CALLBACK('\0', "irqchip", &(cfg)->irqchip,				\
-		     "[gicv2|gicv3]",					\
+		     "[gicv2|gicv2m|gicv3|gicv3-its]",					\
 		     "Type of interrupt controller to emulate in the guest",	\
 		     irqchip_parser, NULL),
 
